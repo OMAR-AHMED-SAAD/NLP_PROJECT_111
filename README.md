@@ -88,4 +88,3 @@ Our Goal Task is to train a Deep Learning Model for `Multi Label Extraction`
    - Get the most repeated words to act as labels
 2. **Using Gemini**
    - Give the transcript for gemini to get multiple labels that can be used
-3. **Parsing the categories & keywords**
