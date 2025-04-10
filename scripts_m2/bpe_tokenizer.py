@@ -7,7 +7,7 @@ from typing import List, Tuple
 import os 
 
 class BPETokenizer:
-    def __init__(self, unk_token:str="[UNK]", special_tokens: List[str]=["[UNK]", "[PAD]", "[MASK]", "[SOS]", "[EOS]"], tokenizer_dir: str = "./tokenizers", tokenizer_path: str = "tokenizer.json"):
+    def __init__(self, unk_token:str="[UNK]", special_tokens: List[str]=["[UNK]", "[PAD]", "[MASK]", "[SOS]", "[EOS]"], tokenizer_dir: str = "./tokenizers", tokenizer_path: str = "tokenizer.json", max_length: int = 25):
         # check if tokenizer_path exists
         self.special_tokens = special_tokens
         self.unk_token = unk_token
@@ -15,6 +15,7 @@ class BPETokenizer:
         self.tokenizer_dir = tokenizer_dir
         self.tokenizer = None
         self.save_dir = f"{self.tokenizer_dir}/{self.tokenizer_path}"
+        self.max_length = max_length
 
         if not os.path.exists(self.save_dir):
             # Create tokenizer
@@ -27,19 +28,21 @@ class BPETokenizer:
             # Load tokenizer
             print(f"Loading tokenizer from {self.save_dir}...")
             self.tokenizer = Tokenizer.from_file(self.save_dir)
-            self.tokenizer.post_processor = TemplateProcessing(
-                single="[SOS] $A [EOS]",
-                special_tokens=[
-                    ("[SOS]", self.tokenizer.token_to_id("[SOS]")),
-                    ("[EOS]", self.tokenizer.token_to_id("[EOS]")),
-                ],
-            )
-            # Debugging
-            unk_id = self.tokenizer.token_to_id(unk_token)
-            print(f"Loaded tokenizer. [UNK] token ID: {unk_id}")
-            if unk_id is None:
-                print(f"Warning: {unk_token} not found in vocabulary!")
+            self._customize_tokenizer()
 
+    def _customize_tokenizer(self):
+        '''
+        Customize the tokenizer with special tokens and other settings.
+        '''
+        self.tokenizer.enable_truncation(max_length=self.max_length)  # for questions
+        self.tokenizer.enable_padding(length=self.max_length, pad_id=self.tokenizer.token_to_id("[PAD]"), pad_token="[PAD]")
+        self.tokenizer.post_processor = TemplateProcessing(
+            single="[SOS] $A [EOS]",
+            special_tokens=[
+                ("[SOS]", self.tokenizer.token_to_id("[SOS]")),
+                ("[EOS]", self.tokenizer.token_to_id("[EOS]")),
+            ],
+        )
     def train(self, combined_text: List[str], vocab_size: int = 10000, min_frequency: int = 2):
         '''
         Train the tokenizer on the combined text.
@@ -61,13 +64,7 @@ class BPETokenizer:
             show_progress=True,
         )
         self.tokenizer.train_from_iterator(combined_text,trainer=trainer)
-        self.tokenizer.post_processor = TemplateProcessing(
-            single="[SOS] $A [EOS]",
-            special_tokens=[
-                ("[SOS]", self.tokenizer.token_to_id("[SOS]")),
-                ("[EOS]", self.tokenizer.token_to_id("[EOS]")),
-            ],
-        )
+        self._customize_tokenizer()
         self.tokenizer.save(self.save_dir)
         print(f"Tokenizer saved to {self.save_dir}")
 
@@ -89,12 +86,9 @@ class BPETokenizer:
         '''
         if not self._check_tokenizer_exists():
             raise ValueError(f"Tokenizer does not exist at {self.save_dir}. Please train the tokenizer first.")
-        unk_id = self.tokenizer.token_to_id(self.unk_token)
-        print(f"Loaded tokenizer. [UNK] token ID: {unk_id}")
-        if unk_id is None:
-            print(f"Warning: {self.unk_token} not found in vocabulary!")
         tokens = self.tokenizer.encode(text)
-        return tokens.ids
+        attention_mask = [1 if tok != self.tokenizer.token_to_id("[PAD]") else 0 for tok in tokens.ids]
+        return tokens.ids, attention_mask
     
     def decode(self, tokens: List[int]) -> str:
         '''
