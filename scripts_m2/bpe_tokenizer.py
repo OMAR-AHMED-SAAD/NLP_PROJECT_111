@@ -34,8 +34,9 @@ class BPETokenizer:
         '''
         Customize the tokenizer with special tokens and other settings.
         '''
-        self.tokenizer.enable_truncation(max_length=self.max_length)  # for questions
-        self.tokenizer.enable_padding(length=self.max_length, pad_id=self.tokenizer.token_to_id("[PAD]"), pad_token="[PAD]")
+        if self.max_length > 0:
+            self.tokenizer.enable_truncation(max_length=self.max_length)  # for questions
+            self.tokenizer.enable_padding(length=self.max_length, pad_id=self.tokenizer.token_to_id("[PAD]"), pad_token="[PAD]")
         self.tokenizer.post_processor = TemplateProcessing(
             single="[SOS] $A [EOS]",
             special_tokens=[
