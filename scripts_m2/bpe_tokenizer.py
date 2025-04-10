@@ -3,11 +3,12 @@ from tokenizers.normalizers import Lowercase
 from tokenizers.processors import TemplateProcessing
 from tokenizers.normalizers import NFD
 from tokenizers.trainers import BpeTrainer
+from tokenizers.decoders import BPEDecoder
 from typing import List, Tuple
 import os 
 
 class BPETokenizer:
-    def __init__(self, unk_token:str="[UNK]", special_tokens: List[str]=["[UNK]", "[PAD]", "[MASK]", "[SOS]", "[EOS]"], tokenizer_dir: str = "./tokenizers", tokenizer_path: str = "tokenizer.json", max_length: int = 25):
+    def __init__(self, unk_token:str="[UNK]", special_tokens: List[str]=["[UNK]", "[PAD]", "[MASK]", "[SOS]", "[EOS]"], tokenizer_dir: str = "./tokenizers", tokenizer_path: str = "tokenizer.json", max_length: int = -1):
         # check if tokenizer_path exists
         self.special_tokens = special_tokens
         self.unk_token = unk_token
@@ -21,7 +22,7 @@ class BPETokenizer:
             # Create tokenizer
             print("Creating new tokenizer...")
             os.makedirs(tokenizer_dir, exist_ok=True)
-            self.tokenizer = Tokenizer(models.BPE(unk_token=unk_token))
+            self.tokenizer = Tokenizer(models.BPE(unk_token=unk_token, end_of_word_suffix='##'))
             self.tokenizer.normalizer = Lowercase()
             self.tokenizer.pre_tokenizer = pre_tokenizers.Whitespace()
         else:
@@ -37,6 +38,7 @@ class BPETokenizer:
         if self.max_length > 0:
             self.tokenizer.enable_truncation(max_length=self.max_length)  # for questions
             self.tokenizer.enable_padding(length=self.max_length, pad_id=self.tokenizer.token_to_id("[PAD]"), pad_token="[PAD]")
+
         self.tokenizer.post_processor = TemplateProcessing(
             single="[SOS] $A [EOS]",
             special_tokens=[
@@ -44,6 +46,8 @@ class BPETokenizer:
                 ("[EOS]", self.tokenizer.token_to_id("[EOS]")),
             ],
         )
+        self.tokenizer.decoder = BPEDecoder(suffix='##')
+
     def train(self, combined_text: List[str], vocab_size: int = 10000, min_frequency: int = 2):
         '''
         Train the tokenizer on the combined text.
@@ -63,6 +67,7 @@ class BPETokenizer:
             min_frequency=min_frequency,
             special_tokens=self.special_tokens,
             show_progress=True,
+            end_of_word_suffix='##'
         )
         self.tokenizer.train_from_iterator(combined_text,trainer=trainer)
         self._customize_tokenizer()
