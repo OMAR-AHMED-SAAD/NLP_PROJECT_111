@@ -36,9 +36,7 @@ class BPETokenizer:
         Customize the tokenizer with special tokens and other settings.
         '''
         if self.max_length > 0:
-            self.tokenizer.enable_truncation(max_length=self.max_length)  # for questions
-            self.tokenizer.enable_padding(length=self.max_length, pad_id=self.tokenizer.token_to_id("[PAD]"), pad_token="[PAD]")
-
+            self.set_max_length(self.max_length)
         self.tokenizer.post_processor = TemplateProcessing(
             single="[SOS] $A [EOS]",
             special_tokens=[
@@ -47,6 +45,17 @@ class BPETokenizer:
             ],
         )
         self.tokenizer.decoder = BPEDecoder(suffix='##')
+
+    def set_max_length(self, max_length: int):
+        '''
+        Set the maximum length for the tokenizer.
+        
+        Args:
+            max_length (int): The maximum length for the tokenizer.
+        '''
+        self.max_length = max_length
+        self.tokenizer.enable_truncation(max_length=self.max_length)
+        self.tokenizer.enable_padding(length=self.max_length, pad_id=self.tokenizer.token_to_id("[PAD]"), pad_token="[PAD]")
 
     def train(self, combined_text: List[str], vocab_size: int = 10000, min_frequency: int = 2):
         '''
@@ -73,6 +82,16 @@ class BPETokenizer:
         self._customize_tokenizer()
         self.tokenizer.save(self.save_dir)
         print(f"Tokenizer saved to {self.save_dir}")
+
+
+    def get_tokenizer(self):
+        """
+        Get the underlying tokenizer object.
+        
+        Returns:
+            Tokenizer: The tokenizer object.
+        """
+        return self.tokenizer
 
     def _check_tokenizer_exists(self) -> bool:
         '''
