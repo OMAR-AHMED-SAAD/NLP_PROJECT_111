@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from typing import Tuple, List, Dict, Union
+from typing import Tuple, Union
 
 
 class Encoder(nn.Module):
@@ -24,11 +24,11 @@ class Encoder(nn.Module):
             self.rnn = nn.GRU(embedding_dim, hidden_dim, num_layers, batch_first=True, dropout=dropout)
 
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        print(f"Encoder input shape: {x.shape}")  
+        # print(f"Encoder input shape: {x.shape}")  
         embedded = self.embedding(x)  # (batch, seq_len, embed_dim)
-        print(f"Encoder Embedded shape: {embedded.shape}")
+        # print(f"Encoder Embedded shape: {embedded.shape}")
         outputs, h_t = self.rnn(embedded) # outputs: (batch, seq_len, hidden_dim), hidden: (num_layers, batch, hidden_dim)
-        print(f"Encoder output shape: {outputs.shape}, hidden shape: {h_t[0].shape}")  
+        # print(f"Encoder output shape: {outputs.shape}, hidden shape: {h_t[0].shape}")  
         return outputs, h_t  
 
 class Decoder(nn.Module):
@@ -48,13 +48,13 @@ class Decoder(nn.Module):
 
     def forward(self, x: torch.Tensor, h_t: Union[torch.Tensor,torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor]:
         # x: (batch_size, seq_len) - input token at time step t
-        print(f"Decoder input shape: {x.shape}")
+        # print(f"Decoder input shape: {x.shape}")
         x = self.embedding(x)  # (batch_size, seq_len, embed_dim)
-        print(f"Decoder Embedded shape: {x.shape}")
+        # print(f"Decoder Embedded shape: {x.shape}")
         output, h_t = self.rnn(x, h_t) # output: (batch_size, seq_len, hidden_dim), hidden: (num_layers, batch_size, hidden_dim)
-        print(f"Decoder output shape: {output.shape}, hidden shape: {h_t[0].shape}")
+        # print(f"Decoder output shape: {output.shape}, hidden shape: {h_t[0].shape}")
         prediction = self.fc(output)  # (batch_size, seq_len, vocab_size)
-        print(f"Decoder prediction shape: {prediction.shape}")
+        # print(f"Decoder prediction shape: {prediction.shape}")
         return prediction, h_t 
 
 class Seq2Seq(nn.Module):
@@ -74,8 +74,9 @@ class Seq2Seq(nn.Module):
         encoder_outputs, encoder_hidden = self.encoder(src) # (batch_size, src_len, hidden_dim), (num_layers, batch_size, hidden_dim)
         decoder_outputs, decoder_hidden = self.decoder(trg, encoder_hidden) # (batch_size, trg_len, vocab_size), (num_layers, batch_size, hidden_dim)
         return decoder_outputs
+
     
-    def predict(self, src: torch.Tensor, max_len: int=20) -> torch.Tensor:
+    def predict(self, src: torch.Tensor, max_len: int=25) -> torch.Tensor:
         batch_size = src.size(0)
         trg = torch.zeros(batch_size, max_len+1).long().to(self.device)
         trg[:, 0] = self.sos_token 
@@ -85,7 +86,7 @@ class Seq2Seq(nn.Module):
         for t in range(1, max_len+1):
             output, hidden = self.decoder(input, hidden)
             top1 = output[:,-1,:].argmax(axis=-1)
-            print(f"Decoder output shape: {output.shape}, top1 shape: {top1.shape}")
+            # print(f"Decoder output shape: {output.shape}, top1 shape: {top1.shape}")
             trg[:, t] = top1
             finished |= (top1 == self.eos_token)
             if finished.all():

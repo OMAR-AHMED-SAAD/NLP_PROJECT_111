@@ -5,9 +5,10 @@ from tokenizers import Tokenizer
 from .bpe_tokenizer import BPETokenizer
 
 class QADataset(Dataset):
-    def __init__(self, data: List[Dict[str, str]], tokenizer: BPETokenizer):
+    def __init__(self, data: List[Dict[str, str]], tokenizer: BPETokenizer, set_padding: bool = False) -> None:
         self.data = data
         self.tokenizer = tokenizer
+        self.set_padding = set_padding
 
     def __len__(self) -> int:
         return len(self.data)
@@ -21,7 +22,7 @@ class QADataset(Dataset):
         # Tokenize the question and answer
         self.tokenizer.set_max_length(25)
         question_tokens, attention_mask_question = self.encode(question, self.tokenizer.get_tokenizer())
-        self.tokenizer.set_max_length(10)
+        self.tokenizer.set_max_length(9)
         answer_tokens, attention_mask_answer = self.encode(answer, self.tokenizer.get_tokenizer())
 
         return {
