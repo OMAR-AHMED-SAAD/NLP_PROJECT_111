@@ -180,3 +180,5 @@ youtube/
 .DS_Store
 
 stopwords.py
+
+*.pkl

@@ -7,6 +7,8 @@ from .metrics import *
 from typing import Dict, Tuple
 import numpy as np
 from .bpe_tokenizer import BPETokenizer
+import pickle
+import os
 
 def train_seq2seq(
     model: nn.Module,
@@ -146,14 +148,17 @@ def train_qa_context_model(model: nn.Module,
             progress_bar.set_postfix(loss=loss.item())
 
         print(f"Epoch {epoch+1} Loss: {epoch_loss / len(train_dataloader):.4f}")
-
+        
+        train_metrics = evaluate_qa_context_model(model, train_dataloader, criterion, device, prefix_str="Training")
         if evaluate_val_dataset and val_dataloader is not None:
             val_metrics = evaluate_qa_context_model(model, val_dataloader, criterion, device) 
+        print('-'*50)
 
 def evaluate_qa_context_model(model: nn.Module, 
                               dataloader: DataLoader,
                               criterion: nn.Module,
-                              device: torch.device) -> Tuple[float, Dict[str, float]]:
+                              device: torch.device,
+                              prefix_str: str="Validation") -> Tuple[float, Dict[str, float]]:
     """
     Evaluate the QA context model.
 
@@ -162,6 +167,7 @@ def evaluate_qa_context_model(model: nn.Module,
         dataloader (DataLoader): DataLoader for validation data.
         criterion (nn.Module): Loss function.
         device (torch.device): Device to evaluate on (CPU or GPU).
+        prefix_str (str): Prefix string for logging.
 
     Returns:
         Tuple[float, Dict[str, float]]: Validation loss and evaluation metrics.
@@ -198,13 +204,13 @@ def evaluate_qa_context_model(model: nn.Module,
             y_pred_end.extend(end_logits.argmax(dim=-1).cpu().numpy())
 
     total_loss /= len(dataloader)
-    print(f"Validation Loss: {total_loss:.4f}")
+    print(f"{prefix_str} Loss: {total_loss:.4f}")
     
     metrics = evaluate_qa_predictions(pred_start=np.array(y_pred_start),
                                       pred_end=np.array(y_pred_end),
                                       gt_start=np.array(y_true_start),
                                       gt_end=np.array(y_true_end))
-    print(f"Validation Metrics: {metrics}")
+    print(f"{prefix_str} Metrics: {metrics}")
     
     return total_loss, metrics
 
@@ -253,13 +259,34 @@ def predict_qa_context_model(model: nn.Module,
 
 
 
-def save_model(model: nn.Module, path: str) -> None:
+def save_model(model: nn.Module, model_path: str, save_again: bool=False) -> None:
     """
     Save the model to the specified path.
 
     Args:
         model (nn.Module): The model to save.
-        path (str): Path to save the model.
+        model_path (str): Path to save the model.
+        save_again (bool): Whether to overwrite the existing model file.
     """
-    torch.save(model.state_dict(), path)
-    print(f"Model saved to {path}")
+    if os.path.exists(model_path) and not save_again:
+        print(f"Model file {model_path} already exists. Skipping save.")
+    else:
+        with open(model_path, "wb") as f:
+            pickle.dump(model, f)
+            print(f"Model saved to {model_path}")
+
+
+def load_model(model_path: str) -> nn.Module:
+    """
+    Load the model from the specified path.
+
+    Args:
+        model_path (str): Path to load the model from.
+
+    Returns:
+        nn.Module: The loaded model.
+    """
+    with open(model_path, "rb") as f:
+        model = pickle.load(f)
+        print(f"Model loaded from {model_path}")
+    return model

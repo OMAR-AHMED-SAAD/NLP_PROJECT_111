@@ -12,7 +12,8 @@ class QADataset(Dataset):
                  context_max_length: int=145,
                  answer_max_length: int=9,
                  question_max_length: int=25,
-                 include_context: bool=False) -> None:
+                 include_context: bool=False,
+                 context_question_swap: bool=False) -> None:
         self.data = data
         self.tokenizer = tokenizer
         self.set_padding = set_padding
@@ -21,6 +22,7 @@ class QADataset(Dataset):
         self.include_context = include_context
 
         if self.include_context:
+            self.context_question_swap = context_question_swap
             self.context_max_length = context_max_length
             self._filter_data(data)
             
@@ -45,7 +47,10 @@ class QADataset(Dataset):
             self.tokenizer.set_max_length(self.context_max_length)
             context_tokens, attention_mask_context, context_offsets = self.encode(context, self.tokenizer.get_tokenizer())
             self.tokenizer.set_max_length(self.context_max_length + self.question_max_length + 1) # +1 for [SEP]
-            context_question_tokens, attention_mask_context_question = self.encode_two_texts(context, question)
+            if self.context_question_swap:
+                context_question_tokens, attention_mask_context_question = self.encode_two_texts(question, context)
+            else:
+                context_question_tokens, attention_mask_context_question = self.encode_two_texts(context, question)
             start_idx, end_idx = self.prepare_start_end_indices(answer_start, answer_end, context_offsets)
 
         returned_data = {
