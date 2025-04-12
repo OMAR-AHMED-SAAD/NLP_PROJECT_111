@@ -3,9 +3,10 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader
 import torch.nn as nn
 import torch.optim as optim
-from .metrics import evaluate_model
+from .metrics import *
 from typing import Dict, Tuple
 import numpy as np
+from .bpe_tokenizer import BPETokenizer
 
 def train_seq2seq(
     model: nn.Module,
@@ -90,3 +91,175 @@ def evaluate_seq2seq(
     metrics = evaluate_model(y_true, y_pred)
     print(f"Validation Metrics: {metrics}")
     return total_loss, metrics
+
+
+
+def train_qa_context_model(model: nn.Module,
+                           train_dataloader: DataLoader,
+                           criterion: nn.Module,
+                           optimizer: optim.Optimizer,
+                           device: torch.device,
+                           num_epochs: int,
+                           val_dataloader: DataLoader=None,
+                           evaluate_val_dataset: bool=False) -> None:
+    """
+    Train and evaluate the QA context model.
+
+    Args:
+        model (nn.Module): The model to train.
+        train_dataloader (DataLoader): DataLoader for training data.
+        criterion (nn.Module): Loss function.
+        optimizer (optim.Optimizer): Optimizer.
+        device (torch.device): Device to train on (CPU or GPU).
+        num_epochs (int): Number of epochs to train for.
+        val_dataloader (DataLoader, optional): DataLoader for validation data.
+        evaluate_val_dataset (bool): Whether to evaluate on the validation dataset after each epoch.
+
+    """
+    model.to(device)
+    for epoch in range(num_epochs):
+        model.train()
+        epoch_loss = 0
+        progress_bar = tqdm(train_dataloader, desc=f"Epoch {epoch+1}/{num_epochs}")
+
+        for batch in progress_bar:
+            context_question = batch['context_question'].to(device)
+            answer_start = batch['answer_start'].contiguous().view(-1).to(device)
+            answer_end = batch['answer_end'].contiguous().view(-1).to(device)
+            optimizer.zero_grad()
+
+            # Forward pass
+            start_logits, end_logits = model(context_question)
+
+            # Compute loss
+            start_logits = start_logits.contiguous().view(-1, start_logits.size(-1))
+            end_logits = end_logits.contiguous().view(-1, end_logits.size(-1))
+            loss_start = criterion(start_logits, answer_start)
+            loss_end = criterion(end_logits, answer_end)
+            loss = loss_start + loss_end
+
+            # Backward pass and optimization
+            loss.backward()
+            optimizer.step()
+
+            epoch_loss += loss.item()
+            progress_bar.set_postfix(loss=loss.item())
+
+        print(f"Epoch {epoch+1} Loss: {epoch_loss / len(train_dataloader):.4f}")
+
+        if evaluate_val_dataset and val_dataloader is not None:
+            val_metrics = evaluate_qa_context_model(model, val_dataloader, criterion, device) 
+
+def evaluate_qa_context_model(model: nn.Module, 
+                              dataloader: DataLoader,
+                              criterion: nn.Module,
+                              device: torch.device) -> Tuple[float, Dict[str, float]]:
+    """
+    Evaluate the QA context model.
+
+    Args:
+        model (nn.Module): The model to evaluate.
+        dataloader (DataLoader): DataLoader for validation data.
+        criterion (nn.Module): Loss function.
+        device (torch.device): Device to evaluate on (CPU or GPU).
+
+    Returns:
+        Tuple[float, Dict[str, float]]: Validation loss and evaluation metrics.
+    """
+    model.eval()
+    total_loss = 0
+    y_true_start = []
+    y_true_end = []
+    y_pred_start = []
+    y_pred_end = []
+
+    with torch.no_grad():
+        for batch in tqdm(dataloader, desc="Evaluating"):
+            context_question = batch['context_question'].to(device)
+            answer_start = batch['answer_start'].contiguous().view(-1).to(device)
+            answer_end = batch['answer_end'].contiguous().view(-1).to(device)
+
+            # Forward pass
+            start_logits, end_logits = model(context_question)
+
+            # Compute loss
+            start_logits = start_logits.contiguous().view(-1, start_logits.size(-1))
+            end_logits = end_logits.contiguous().view(-1, end_logits.size(-1))
+            loss_start = criterion(start_logits, answer_start)
+            loss_end = criterion(end_logits, answer_end)
+            loss = loss_start + loss_end
+
+            total_loss += loss.item()
+
+            # Collect predictions and true values
+            y_true_start.extend(answer_start.cpu().numpy())
+            y_true_end.extend(answer_end.cpu().numpy())
+            y_pred_start.extend(start_logits.argmax(dim=-1).cpu().numpy())
+            y_pred_end.extend(end_logits.argmax(dim=-1).cpu().numpy())
+
+    total_loss /= len(dataloader)
+    print(f"Validation Loss: {total_loss:.4f}")
+    
+    metrics = evaluate_qa_predictions(pred_start=np.array(y_pred_start),
+                                      pred_end=np.array(y_pred_end),
+                                      gt_start=np.array(y_true_start),
+                                      gt_end=np.array(y_true_end))
+    print(f"Validation Metrics: {metrics}")
+    
+    return total_loss, metrics
+
+def predict_qa_context_model(model: nn.Module,
+                             dataloader: DataLoader,
+                             tokenizer: BPETokenizer,
+                             device: torch.device) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Predicts and decodes the answer spans from the QA model.
+
+    Args:
+        model (nn.Module): The model to evaluate.
+        dataloader (DataLoader): DataLoader for validation data.
+        tokenizer (BPETokenizer): Tokenizer for the model.
+        device (torch.device): Device to evaluate on (CPU or GPU).
+
+    Returns:
+        Tuple[np.ndarray, np.ndarray]: Predicted and true labels.
+    """
+    model.eval()
+    preds = []
+    true_labels = []
+    with torch.no_grad():
+        for batch in tqdm(dataloader, desc="Predicting"):
+            context_question = batch['context_question'].to(device)
+            context = batch['context'].to(device)
+            answer = batch['answer'].to(device)
+
+            start_logits, end_logits = model(context_question)
+
+            y_pred_start = start_logits.argmax(dim=-1).cpu().numpy()  # Shape: (batch_size, seq_len)
+            y_pred_end = end_logits.argmax(dim=-1).cpu().numpy()        # Shape: (batch_size, seq_len)
+
+            context = context.cpu().numpy()  # Shape: (batch_size, seq_len)
+
+            for i, (start_idx, end_idx) in enumerate(zip(y_pred_start, y_pred_end)):
+                if start_idx > end_idx:
+                    answer_tokens = []
+                else:
+                    answer_tokens = context[i, start_idx:end_idx + 1].tolist()
+                decoded_answer_pred = tokenizer.decode(answer_tokens)
+                decoded_answer_true = tokenizer.decode(answer[i].cpu().numpy().tolist())
+                true_labels.append(decoded_answer_true)
+                preds.append(decoded_answer_pred)
+    return np.array(preds), np.array(true_labels)
+
+
+
+def save_model(model: nn.Module, path: str) -> None:
+    """
+    Save the model to the specified path.
+
+    Args:
+        model (nn.Module): The model to save.
+        path (str): Path to save the model.
+    """
+    torch.save(model.state_dict(), path)
+    print(f"Model saved to {path}")

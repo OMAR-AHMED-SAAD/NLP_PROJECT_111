@@ -8,7 +8,7 @@ from typing import List, Tuple
 import os 
 
 class BPETokenizer:
-    def __init__(self, unk_token:str="[UNK]", special_tokens: List[str]=["[UNK]", "[PAD]", "[MASK]", "[SOS]", "[EOS]"], tokenizer_dir: str = "./tokenizers", tokenizer_path: str = "tokenizer.json", max_length: int = -1):
+    def __init__(self, unk_token:str="[UNK]", special_tokens: List[str]=["[UNK]", "[PAD]", "[MASK]", "[SOS]", "[EOS]", "[SEP]"], tokenizer_dir: str = "./tokenizers", tokenizer_path: str = "tokenizer.json", max_length: int = -1):
         # check if tokenizer_path exists
         self.special_tokens = special_tokens
         self.unk_token = unk_token
@@ -39,8 +39,10 @@ class BPETokenizer:
             self.set_max_length(self.max_length)
         self.tokenizer.post_processor = TemplateProcessing(
             single="[SOS] $A [EOS]",
+            pair="[SOS] $A [SEP] $B [EOS]",
             special_tokens=[
                 ("[SOS]", self.tokenizer.token_to_id("[SOS]")),
+                ("[SEP]", self.tokenizer.token_to_id("[SEP]")),
                 ("[EOS]", self.tokenizer.token_to_id("[EOS]")),
             ],
         )
@@ -151,6 +153,20 @@ class BPETokenizer:
         texts = self.tokenizer.decode_batch(tokens)
         return texts
     
-    
-
-
+    def encode_two_texts(self, context: str, question: str) -> Tuple[List[int], List[int]]:
+        '''
+        Encode a single context, question and answer into tokens.
+        
+        Args:
+            context (str): The context to encode.
+            question (str): The question to encode.
+        
+        Returns:
+            Tuple[List[int], List[int]]: The encoded tokens and attention mask.
+        '''
+        if not self._check_tokenizer_exists():
+            raise ValueError(f"Tokenizer does not exist at {self.save_dir}. Please train the tokenizer first.")
+        context_question_tokens = self.tokenizer.encode(context, question)
+        attention_mask_context = [1 if tok != self.tokenizer.token_to_id("[PAD]") else 0 for tok in context_question_tokens.ids]
+        
+        return context_question_tokens.ids, attention_mask_context
