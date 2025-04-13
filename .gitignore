@@ -184,3 +184,4 @@ stopwords.py
 *.pkl
 
 */.vector_cache/*
+QA Task milestone/notebooks_m2/.vector_cache
