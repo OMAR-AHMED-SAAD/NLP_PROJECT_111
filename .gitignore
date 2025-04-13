@@ -182,3 +182,5 @@ youtube/
 stopwords.py
 
 *.pkl
+
+*/.vector_cache/*
