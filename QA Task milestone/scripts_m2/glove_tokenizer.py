@@ -2,10 +2,11 @@ import torchtext
 from torchtext.data.utils import get_tokenizer
 from torchtext.vocab import GloVe, vocab
 import torch
+import re
 torchtext.disable_torchtext_deprecation_warning()
 
 
-class gloveTokenizer:
+class GloveTokenizer:
 
     def __init__(
         self,
@@ -43,6 +44,15 @@ class gloveTokenizer:
         self.max_length = max_length
         self.pad_idx = glove_vocab["[PAD]"]
 
+    def get_pretrained_embeddings(self) -> torch.Tensor:
+        """
+        Get the pretrained GloVe embeddings.
+
+        Returns:
+            torch.Tensor: The pretrained GloVe embeddings.
+        """
+        return self.pretrained_embeddings
+
     def set_max_length(self, max_length: int):
         """
         Set the maximum length for the tokenizer.
@@ -76,18 +86,38 @@ class gloveTokenizer:
 
         return tokens
 
-    def encode(self, text: str) -> torch.Tensor:
-        """
-        Encode a single text into tokens.
-
-        Args:
-            text (str): The text to encode.
-        """
-        tokens = self.tokenize(text)
+    def encode(
+        self,
+        text: str,
+        other_tokens_to_mask: list[str] = []
+    ) -> tuple[torch.Tensor, list[int], list[tuple[int, int]]]:
+        tokens = self.tokenize(text)  # list of tokens
         token_ids = [self.glove_vocab[token] for token in tokens]
-        attention_mask = [0 if token_id ==
-                          self.pad_idx else 1 for token_id in token_ids]
-        return torch.tensor(token_ids), attention_mask
+        #  add pad to start of the list
+        masked_token_ids = [
+            self.glove_vocab[token] for token in other_tokens_to_mask
+        ]
+        attention_mask = [
+            0 if token_id in masked_token_ids else 1 for token_id in token_ids
+        ]
+
+        # --- Manually compute offsets ---
+        offsets = []
+        current_pos = 0
+        for token in tokens:
+            # Find the next occurrence of the token
+            match = re.search(re.escape(token), text[current_pos:])
+            if match:
+                start = current_pos + match.start()
+                end = current_pos + match.end()
+                offsets.append((start, end))
+                current_pos = end  # move past the current token
+            else:
+                offsets.append(
+                    (0, 0)
+                )  # fallback in case not found (shouldn't happen normally)
+
+        return torch.tensor(token_ids), attention_mask, offsets
 
     def decode(self, token_ids: torch.Tensor) -> str:
         """
@@ -97,10 +127,15 @@ class gloveTokenizer:
             token_ids (torch.Tensor): The list of token IDs to decode.
         """
         # Convert token IDs to tokens using the vocab's lookup_tokens method
-        tokens = self.glove_vocab.lookup_tokens(token_ids.tolist())
+        #  turn token_ids into a list if it is a tensor
+        if isinstance(token_ids, torch.Tensor):
+            token_ids = token_ids.tolist()
+        tokens = self.glove_vocab.lookup_tokens(token_ids)
 
         # Remove special tokens
-        tokens = [token for token in tokens if token not in self.special_tokens]
+        tokens = [
+            token for token in tokens if token not in self.special_tokens
+        ]
 
         return " ".join(tokens)
 
@@ -121,8 +156,9 @@ class gloveTokenizer:
         token_lists = [self.tokenize(text) for text in texts]
         token_ids = [[self.glove_vocab[token] for token in tokens]
                      for tokens in token_lists]
-        attention_masks = [[0 if token_id == self.pad_idx else 1 for token_id in ids]
-                           for ids in token_ids]
+        attention_masks = [[
+            0 if token_id == self.pad_idx else 1 for token_id in ids
+        ] for ids in token_ids]
 
         return token_ids, attention_masks
 
@@ -135,20 +171,23 @@ class gloveTokenizer:
         """
         # Convert each batch of token IDs to tokens using the vocab's lookup_tokens method
         texts = [
-            self.glove_vocab.lookup_tokens(token_ids) for token_ids in token_ids_batch
+            self.glove_vocab.lookup_tokens(token_ids)
+            for token_ids in token_ids_batch
         ]
 
         # Remove special tokens
-        texts = [
-            [token for token in text if token not in self.special_tokens]
-            for text in texts
-        ]
+        texts = [[token for token in text if token not in self.special_tokens]
+                 for text in texts]
 
         # Join tokens into strings for each batch
         return [" ".join(text) for text in texts]
 
-    def encode_two_texts(self, context: str,
-                         question: str) -> tuple[torch.Tensor, torch.Tensor]:
+    def encode_two_texts(
+        self,
+        context: str,
+        question: str,
+        other_tokens_to_mask: list[str] = []
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Encode a single context and question into tokens.
         Args:
@@ -157,8 +196,14 @@ class gloveTokenizer:
         """
         tokens = self.tokenize(context, question)
         token_ids = [self.glove_vocab[token] for token in tokens]
-        attention_mask = [0 if token_id ==
-                          self.pad_idx else 1 for token_id in token_ids]
+        #  add pad to start of the list
+        masked_token_ids = [
+            self.glove_vocab[token] for token in other_tokens_to_mask
+        ]
+        attention_mask = [
+            0 if token_id in masked_token_ids else 1 for token_id in token_ids
+        ]
+
         return torch.tensor(token_ids), attention_mask
 
     def encode_two_texts_batch(
