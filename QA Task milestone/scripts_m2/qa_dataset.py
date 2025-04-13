@@ -49,8 +49,12 @@ class QADataset(Dataset):
             self.tokenizer.set_max_length(self.context_max_length + self.question_max_length + 1) # +1 for [SEP]
             if self.context_question_swap:
                 context_question_tokens, attention_mask_context_question = self.tokenizer.encode_two_texts(question, context, other_tokens_to_mask=["[SEP]", "[SOS]", "[EOS]"], is_question_first=True)
+                sep_idx = context_question_tokens.index(self.tokenizer.get_tokenizer().token_to_id("[SEP]")) if self.tokenizer.get_tokenizer().token_to_id("[SEP]") in context_question_tokens else len(question_tokens)
+                context_question_type_mask = [0] * (sep_idx + 1) + [1] * (len(context_question_tokens) - sep_idx - 1)
             else:
                 context_question_tokens, attention_mask_context_question = self.tokenizer.encode_two_texts(context, question, other_tokens_to_mask=["[SEP]", "[SOS]", "[EOS]"], is_question_first=False)
+                sep_idx = context_question_tokens.index(self.tokenizer.get_tokenizer().token_to_id("[SEP]")) if self.tokenizer.get_tokenizer().token_to_id("[SEP]") in context_question_tokens else len(context_tokens)
+                context_question_type_mask = [1] * sep_idx + [0] * (len(context_question_tokens) - sep_idx)
             start_idx, end_idx = self.prepare_start_end_indices(answer_start, answer_end, context_offsets)
 
         returned_data = {
@@ -66,6 +70,7 @@ class QADataset(Dataset):
             returned_data["attention_mask_context_question"] = torch.tensor(attention_mask_context_question, dtype=torch.long)
             returned_data["answer_start"] = torch.tensor(start_idx, dtype=torch.long)
             returned_data["answer_end"] = torch.tensor(end_idx, dtype=torch.long)
+            returned_data["context_question_type_mask"] = torch.tensor(context_question_type_mask, dtype=torch.long)
 
         return returned_data
     
