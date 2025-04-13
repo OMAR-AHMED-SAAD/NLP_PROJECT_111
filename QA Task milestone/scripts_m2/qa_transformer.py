@@ -8,7 +8,7 @@ class TransformerQAModel(nn.Module):
                  max_seq_len: int = 512,
                  d_model: int = 256,
                  nhead: int = 8,
-                 num_layers: int = 4,
+                 num_layers: int = 3,
                  dim_feedforward: int = 512,
                  dropout: float = 0.1):
         super().__init__()
@@ -46,9 +46,9 @@ class TransformerQAModel(nn.Module):
         seg_emb = self.segment_embeddings(token_type_ids)             # [B, L, D]
         pos_emb = self.position_embeddings[:, :seq_len, :]            # [1, L, D]
 
-        print("Token Embeddings Shape:", tok_emb.shape)
-        print("Segment Embeddings Shape:", seg_emb.shape)
-        print("Position Embeddings Shape:", pos_emb.shape)
+        # print("Token Embeddings Shape:", tok_emb.shape)
+        # print("Segment Embeddings Shape:", seg_emb.shape)
+        # print("Position Embeddings Shape:", pos_emb.shape)
         x = tok_emb + seg_emb + pos_emb
         x = self.dropout(x)
 
