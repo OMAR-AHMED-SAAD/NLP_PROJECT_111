@@ -123,7 +123,7 @@ def train_qa_context_model(model: nn.Module,
         model.train()
         epoch_loss = 0
         progress_bar = tqdm(train_dataloader, desc=f"Epoch {epoch+1}/{num_epochs}")
-
+        
         for batch in progress_bar:
             context_question = batch['context_question'].to(device)
             answer_start = batch['answer_start'].contiguous().view(-1).to(device)
@@ -133,9 +133,9 @@ def train_qa_context_model(model: nn.Module,
             # Forward pass
             start_logits, end_logits = model(context_question)
 
-            # Compute loss
             start_logits = start_logits.contiguous().view(-1, start_logits.size(-1))
             end_logits = end_logits.contiguous().view(-1, end_logits.size(-1))
+
             loss_start = criterion(start_logits, answer_start)
             loss_end = criterion(end_logits, answer_end)
             loss = loss_start + loss_end
@@ -185,12 +185,11 @@ def evaluate_qa_context_model(model: nn.Module,
             answer_start = batch['answer_start'].contiguous().view(-1).to(device)
             answer_end = batch['answer_end'].contiguous().view(-1).to(device)
 
-            # Forward pass
             start_logits, end_logits = model(context_question)
 
-            # Compute loss
             start_logits = start_logits.contiguous().view(-1, start_logits.size(-1))
             end_logits = end_logits.contiguous().view(-1, end_logits.size(-1))
+            
             loss_start = criterion(start_logits, answer_start)
             loss_end = criterion(end_logits, answer_end)
             loss = loss_start + loss_end

@@ -45,12 +45,12 @@ class QADataset(Dataset):
         answer_tokens, attention_mask_answer, _ = self.encode(answer, self.tokenizer.get_tokenizer())
         if self.include_context:
             self.tokenizer.set_max_length(self.context_max_length)
-            context_tokens, attention_mask_context, context_offsets = self.encode(context, self.tokenizer.get_tokenizer())
+            context_tokens, attention_mask_context, context_offsets = self.encode(context, self.tokenizer.get_tokenizer(), other_tokens_to_mask=["[SEP]", "[SOS]", "[EOS]"])
             self.tokenizer.set_max_length(self.context_max_length + self.question_max_length + 1) # +1 for [SEP]
             if self.context_question_swap:
-                context_question_tokens, attention_mask_context_question = self.encode_two_texts(question, context)
+                context_question_tokens, attention_mask_context_question = self.tokenizer.encode_two_texts(question, context, other_tokens_to_mask=["[SEP]", "[SOS]", "[EOS]"], is_question_first=True)
             else:
-                context_question_tokens, attention_mask_context_question = self.encode_two_texts(context, question)
+                context_question_tokens, attention_mask_context_question = self.tokenizer.encode_two_texts(context, question, other_tokens_to_mask=["[SEP]", "[SOS]", "[EOS]"], is_question_first=False)
             start_idx, end_idx = self.prepare_start_end_indices(answer_start, answer_end, context_offsets)
 
         returned_data = {
@@ -69,33 +69,25 @@ class QADataset(Dataset):
 
         return returned_data
     
-    def encode(self, text: str, tokenizer: Tokenizer) -> Tuple[List[int], List[int], List[Tuple[int, int]]]:
+    def encode(self, text: str, tokenizer: Tokenizer, other_tokens_to_mask: List[str]=None) -> Tuple[List[int], List[int], List[Tuple[int, int]]]:
         '''
         Encode a single text into tokens.
         
         Args:
             text (str): The text to encode.
             tokenizer (Tokenizer): The tokenizer to use.
+            other_tokens_to_mask (List[str]): List of tokens to mask. Default is None.
         '''
         tokens = tokenizer.encode(text)
-        attention_mask = [1 if tok != tokenizer.token_to_id("[PAD]") else 0 for tok in tokens.ids]
+        ids_to_mask = [tokenizer.token_to_id("[PAD]")]
+        if other_tokens_to_mask is not None:
+            for token in other_tokens_to_mask:
+                ids_to_mask.append(tokenizer.token_to_id(token))
+        ids_to_mask = set(ids_to_mask)
+        attention_mask = [1 if tok not in ids_to_mask else 0 for tok in tokens.ids]
         offsets = tokens.offsets
         return tokens.ids, attention_mask, offsets
 
-    
-    def encode_two_texts(self, text1: str, text2: str) -> Tuple[List[int], List[int]]:
-        '''
-        Encode two texts into tokens.
-        
-        Args:
-            text1 (str): The first text to encode.
-            text2 (str): The second text to encode.
-            tokenizer (Tokenizer): The tokenizer to use.
-
-        Returns:
-            Tuple[List[int], List[int]]: The encoded tokens and attention mask.
-        '''
-        return self.tokenizer.encode_two_texts(text1, text2)
     
     def prepare_start_end_indices(self, 
                                   answer_start: int, 

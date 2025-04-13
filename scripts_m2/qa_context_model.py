@@ -10,7 +10,8 @@ class RNN_QA_Model(nn.Module):
                  rnn_type: str = "LSTM",
                  dropout: float = 0.1,
                  bidirectional: bool = True,
-                 pad_idx: int = 1):
+                 pad_idx: int = 1,
+                 output_dim: int=1):
         super(RNN_QA_Model, self).__init__()
 
         self.embedding = nn.Embedding(vocab_size, embedding_dim, padding_idx=pad_idx)
@@ -30,8 +31,8 @@ class RNN_QA_Model(nn.Module):
             self.rnn = nn.RNN(embedding_dim, rnn_hidden, num_layers,
                               batch_first=True, dropout=dropout, bidirectional=bidirectional)
 
-        self.fc_start = nn.Linear(hidden_dim, 1)
-        self.fc_end = nn.Linear(hidden_dim, 1)
+        self.fc_start = nn.Linear(hidden_dim, output_dim)
+        self.fc_end = nn.Linear(hidden_dim, output_dim)
 
     def forward(self, input_ids: torch.Tensor) -> tuple:
         """
@@ -43,9 +44,21 @@ class RNN_QA_Model(nn.Module):
             end_logits:   (batch_size, seq_len)
         """
         embedded = self.embedding(input_ids)  # (batch, seq_len, embedding_dim)
-        rnn_out, _ = self.rnn(embedded)       # (batch, seq_len, hidden_dim)
+        _, h_t = self.rnn(embedded)       # (batch, seq_len, hidden_dim)
 
-        start_logits = self.fc_start(rnn_out).squeeze(-1)  # (batch, seq_len)
-        end_logits = self.fc_end(rnn_out).squeeze(-1)      # (batch, seq_len)
+        if self.rnn_type == "LSTM":
+            h_t, c_t = h_t
+
+        # h_n has shape (num_layers * num_directions, batch_size, rnn_hidden)
+        if self.bidirectional:
+            forward_hidden = h_t[-2]  # forward direction from the last layer
+            backward_hidden = h_t[-1] # backward direction from the last layer
+            # Concatenate to form a vector of shape (batch_size, 2 * rnn_hidden) == (batch_size, hidden_dim)
+            h_last = torch.cat((forward_hidden, backward_hidden), dim=-1)
+        else:
+            h_last = h_last[-1]  # (batch_size, rnn_hidden) == (batch_size, hidden_dim) if bidirectional=False
+        
+        start_logits = self.fc_start(h_last)  # (batch, seq_len)
+        end_logits = self.fc_end(h_last)      # (batch, seq_len)
 
         return start_logits, end_logits

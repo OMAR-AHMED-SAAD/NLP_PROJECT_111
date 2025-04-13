@@ -153,20 +153,44 @@ class BPETokenizer:
         texts = self.tokenizer.decode_batch(tokens)
         return texts
     
-    def encode_two_texts(self, context: str, question: str) -> Tuple[List[int], List[int]]:
+    def encode_two_texts(self, context: str, question: str, other_tokens_to_mask: List[str]=None, is_question_first: bool=False) -> Tuple[List[int], List[int]]:
         '''
         Encode a single context, question and answer into tokens.
         
         Args:
             context (str): The context to encode.
             question (str): The question to encode.
-        
+            other_tokens_to_mask (List[str]): List of tokens to mask. Default is None.
+            is_question_first (bool): If True, the question is encoded first. Default is False.
+
         Returns:
             Tuple[List[int], List[int]]: The encoded tokens and attention mask.
         '''
         if not self._check_tokenizer_exists():
             raise ValueError(f"Tokenizer does not exist at {self.save_dir}. Please train the tokenizer first.")
         context_question_tokens = self.tokenizer.encode(context, question)
-        attention_mask_context = [1 if tok != self.tokenizer.token_to_id("[PAD]") else 0 for tok in context_question_tokens.ids]
+        ids_to_mask = [self.tokenizer.token_to_id("[PAD]")]
+        if other_tokens_to_mask is not None:
+            for token in other_tokens_to_mask:
+                ids_to_mask.append(self.tokenizer.token_to_id(token))
+        ids_to_mask = set(ids_to_mask)
+
+        sep_token_id = self.tokenizer.token_to_id("[SEP]")
+        attention_mask_context_question = []
+        sep_token_seen = False
+        for tok in context_question_tokens.ids:
+            if tok == sep_token_id:
+                sep_token_seen = True
+            if tok not in ids_to_mask:
+                if sep_token_seen and is_question_first:
+                    attention_mask_context_question.append(1)
+                elif sep_token_seen and not is_question_first:
+                    attention_mask_context_question.append(0)
+                elif not sep_token_seen and is_question_first:
+                    attention_mask_context_question.append(0)
+                elif not sep_token_seen and not is_question_first:
+                    attention_mask_context_question.append(1)
+            else:
+                attention_mask_context_question.append(0)
         
-        return context_question_tokens.ids, attention_mask_context
+        return context_question_tokens.ids, attention_mask_context_question
