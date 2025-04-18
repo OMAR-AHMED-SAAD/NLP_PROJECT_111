@@ -2,9 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-# =======================
-# Attention Flow Module
-# =======================
+
 class BiDAFAttention(nn.Module):
     """
     Implements the Bi-Directional Attention Flow (BiDAF) layer.
@@ -72,9 +70,6 @@ class BiDAFAttention(nn.Module):
         G = torch.cat([context, attended_query, context * attended_query, context * attended_context], dim=2)
         return G
 
-# =======================
-# Output Module
-# =======================
 class BiDAFOutput(nn.Module):
     """
     Computes the start and end logits from the concatenated representations.
@@ -117,9 +112,6 @@ class BiDAFOutput(nn.Module):
         end_logits = self.p2_weight(self.dropout(GM2)).squeeze(2)  # (batch, c_len)
         return start_logits, end_logits
 
-# =======================
-# BiDAF Model Definition
-# =======================
 class BiDAF(nn.Module):
     """
     The full BiDAF model for machine comprehension.
@@ -152,24 +144,24 @@ class BiDAF(nn.Module):
         # Output layer: predicts the start and end positions.
         self.output_layer = BiDAFOutput(hidden_size, dropout)
 
-    def forward(self, context_idxs, question_idxs):
+    def forward(self, context: torch.Tensor, question: torch.Tensor) -> tuple:
         """
         Args:
-            context_idxs: Tensor of shape (batch, c_len)
+            context: Tensor of shape (batch, c_len)
                           Contains word indices for the context passage.
-            question_idxs: Tensor of shape (batch, q_len)
+            question: Tensor of shape (batch, q_len)
                            Contains word indices for the question.
         Returns:
             start_logits: Tensor of shape (batch, c_len)
             end_logits:   Tensor of shape (batch, c_len)
         """
         # (Optional) Create masks for context and question where indices are nonzero
-        context_mask = (context_idxs != 0)
-        question_mask = (question_idxs != 0)
+        context_mask = (context != 0)
+        question_mask = (question != 0)
         
         # --- Embedding Layer ---
-        context_emb = self.dropout(self.embedding(context_idxs))   # (batch, c_len, embed_dim)
-        question_emb = self.dropout(self.embedding(question_idxs))   # (batch, q_len, embed_dim)
+        context_emb = self.dropout(self.embedding(context))   # (batch, c_len, embed_dim)
+        question_emb = self.dropout(self.embedding(question))   # (batch, q_len, embed_dim)
         
         # --- Contextual Encoder (BiLSTM) ---
         context_encoded, _ = self.context_LSTM(context_emb)   # (batch, c_len, 2*hidden_size)

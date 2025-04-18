@@ -7,5 +7,5 @@ from .metrics import *
 from .qa_context_model import *
 from .qa_transformer import *
 from .qa_dataset_glove import *
-from .glove_tokenizer import *
+# from .glove_tokenizer import *
 from .bidaf import *
