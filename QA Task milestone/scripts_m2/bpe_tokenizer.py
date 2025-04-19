@@ -153,6 +153,24 @@ class BPETokenizer:
         texts = self.tokenizer.decode_batch(tokens)
         return texts
     
+    def encode_texts(self, texts: List[str]) -> Tuple[List[int], List[int]]:
+        '''
+        Encode a single context, question and answer into tokens.
+        
+        Args:
+            texts (List[str]): The texts to encode.
+
+        Returns:
+            Tuple[List[int], List[int]]: The encoded tokens and attention mask.
+        '''
+        if not self._check_tokenizer_exists():
+            raise ValueError(f"Tokenizer does not exist at {self.save_dir}. Please train the tokenizer first.")
+        context_question_tokens = self.tokenizer.encode(*texts)
+        ids_to_mask = [self.tokenizer.token_to_id("[PAD]"), self.tokenizer.token_to_id("[SEP]")]
+        attention_mask = [1 if tok not in ids_to_mask else 0 for tok in context_question_tokens.ids]
+        return context_question_tokens.ids, attention_mask
+
+
     def encode_two_texts(self, context: str, question: str, other_tokens_to_mask: List[str]=None, is_question_first: bool=False) -> Tuple[List[int], List[int]]:
         '''
         Encode a single context, question and answer into tokens.

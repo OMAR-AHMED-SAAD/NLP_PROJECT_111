@@ -1,11 +1,12 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
+import math
 
 class TransformerQAModel(nn.Module):
     def __init__(self,
                  vocab_size: int,
-                 max_seq_len: int = 512,
                  d_model: int = 256,
                  nhead: int = 8,
                  num_layers: int = 3,
@@ -190,4 +191,110 @@ class TransformerQAModel2(nn.Module):
             start_logits = start_logits.masked_fill(ctx_pad, -1e9)
             end_logits   = end_logits.masked_fill(ctx_pad, -1e9)
         
+        return start_logits, end_logits
+
+
+
+class TransformerQAModel3(nn.Module):
+    def __init__(self,
+                 vocab_size: int,
+                 d_model: int,
+                 num_layers: int,
+                 num_heads: int,
+                 dim_feedforward: int,
+                 max_question_len: int,
+                 max_context_len: int,
+                 dropout: float = 0.1):
+        """
+        Args:
+          vocab_size: size of your tokenizer vocabulary
+          d_model: transformer hidden size
+          num_layers: number of encoder blocks
+          num_heads: number of attention heads
+          dim_feedforward: inner dim of the transformer FFN
+          max_question_len: maximum length of question (m)
+          max_context_len: maximum length of context (n)
+        """
+        super().__init__()
+        self.d_model = d_model
+        self.max_context_len = max_context_len
+        self.seq_len = max_question_len + max_context_len - 1
+
+        # --- embedding + positional encoding ---
+        self.token_emb = nn.Embedding(vocab_size, d_model)
+        self.pos_emb   = nn.Embedding(self.seq_len, d_model)
+
+        # --- transformer encoder ---
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=d_model,
+            nhead=num_heads,
+            dim_feedforward=dim_feedforward,
+            dropout=dropout,
+            activation="relu"
+        )
+        self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+
+        # --- the “Concat & FeedForward” from Fig 2(a) ---
+        #  input_dim = (context_len+1) * d_model, hidden = (context_len+1)
+        self.fc1 = nn.LazyLinear(self.max_context_len)
+        self.relu = nn.ReLU()
+
+        # --- two heads for start / end ---
+        self.start_ff = nn.LazyLinear(self.max_context_len)
+        self.end_ff   = nn.LazyLinear(self.max_context_len)
+
+    def forward(self,
+                context_question: torch.LongTensor,
+                attention_mask_context_question: torch.BoolTensor = None,
+               ) -> torch.Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Args:
+          context_question: LongTensor of shape (batch, seq_len)
+          attention_mask_context_question: BoolTensor of shape (batch, seq_len),
+                          True for real tokens, False for padding.
+        Returns:
+          start_probs, end_probs: both FloatTensors of shape (batch, context_len+1)
+        """
+        bsz, seq_len = context_question.size()
+        assert seq_len == self.seq_len, \
+            f"expected seq_len={self.seq_len}, got {seq_len}"
+
+        # --- embed tokens + positions ---
+        pos = torch.arange(seq_len, device=context_question.device).unsqueeze(0)  # (1, seq_len)
+        x = self.token_emb(context_question) * math.sqrt(self.d_model)
+        x = x + self.pos_emb(pos)         # (batch, seq_len, d_model)
+
+        # --- transformer wants (seq_len, batch, d_model) ---
+        x = x.transpose(0,1)
+
+        # build src_key_padding_mask for transformer
+        # (batch, seq_len), True = mask out; so invert attention_mask
+        kp_mask = None
+        if attention_mask_context_question is not None:
+            kp_mask = attention_mask_context_question == 1  # (batch, seq_len)
+
+        # --- pass through N transformer encoder layers ---
+        x = self.encoder(x, src_key_padding_mask=kp_mask)  # (seq_len, batch, d_model)
+        x = x.transpose(0,1)                               # (batch, seq_len, d_model)
+
+        # --- slice off only the context portion (including [OOV]) ---
+        # context lives at the *end* of the sequence:
+        context_repr = x[:, -self.max_context_len:, :]   # (batch, C+1, d_model)
+
+        # --- flatten and feed through the “Concat & FeedForward” ---
+        flat = context_repr.contiguous().view(bsz, -1)     # (batch, (C+1)*d_model)
+        h = self.relu(self.fc1(flat))                   # (batch, C+1)
+
+        # --- two linear heads  ---
+        start_logits = self.start_ff(h)                    # (batch, C+1)
+        end_logits = self.end_ff(h)                      # (batch, C+1)
+        # print("Start logits shape:", start_logits.shape)
+        # print("End logits shape:", end_logits.shape)
+
+        # attention_mask_context = attention_mask_context_question[:, -self.max_context_len:]
+        # # print("Attention mask context shape:", attention_mask_context.shape)
+        # ctx_pad = attention_mask_context == 0 
+        # start_logits = start_logits.masked_fill(ctx_pad, -1e9) # (batch, C+1)
+        # end_logits = end_logits.masked_fill(ctx_pad, -1e9) # (batch, C+1)
+
         return start_logits, end_logits

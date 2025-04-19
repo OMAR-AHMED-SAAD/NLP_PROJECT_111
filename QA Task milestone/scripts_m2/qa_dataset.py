@@ -13,13 +13,15 @@ class QADataset(Dataset):
                  answer_max_length: int=9,
                  question_max_length: int=25,
                  include_context: bool=False,
-                 context_question_swap: bool=False) -> None:
+                 context_question_swap: bool=False,
+                 encode_two_texts_sep: bool=False) -> None:
         self.data = data
         self.tokenizer = tokenizer
         self.set_padding = set_padding
         self.answer_max_length = answer_max_length
         self.question_max_length = question_max_length
         self.include_context = include_context
+        self.encode_two_texts_sep = encode_two_texts_sep
 
         if self.include_context:
             self.context_question_swap = context_question_swap
@@ -47,14 +49,24 @@ class QADataset(Dataset):
             self.tokenizer.set_max_length(self.context_max_length)
             context_tokens, attention_mask_context, context_offsets = self.encode(context, self.tokenizer.get_tokenizer(), other_tokens_to_mask=["[SEP]", "[SOS]", "[EOS]"])
             self.tokenizer.set_max_length(self.context_max_length + self.question_max_length + 1) # +1 for [SEP]
+            context_question_type_mask = [0]
             if self.context_question_swap:
-                context_question_tokens, attention_mask_context_question = self.tokenizer.encode_two_texts(question, context, other_tokens_to_mask=["[SEP]", "[SOS]", "[EOS]"], is_question_first=True)
-                sep_idx = context_question_tokens.index(self.tokenizer.get_tokenizer().token_to_id("[SEP]")) if self.tokenizer.get_tokenizer().token_to_id("[SEP]") in context_question_tokens else len(question_tokens)
-                context_question_type_mask = [0] * (sep_idx + 1) + [1] * (len(context_question_tokens) - sep_idx - 1)
+                if not self.encode_two_texts_sep:
+                    context_question_tokens, attention_mask_context_question = self.tokenizer.encode_two_texts(question, context, other_tokens_to_mask=["[SEP]", "[SOS]", "[EOS]"], is_question_first=True)
+                    sep_idx = context_question_tokens.index(self.tokenizer.get_tokenizer().token_to_id("[SEP]")) if self.tokenizer.get_tokenizer().token_to_id("[SEP]") in context_question_tokens else len(question_tokens)
+                    context_question_type_mask = [0] * (sep_idx + 1) + [1] * (len(context_question_tokens) - sep_idx - 1)
+                else:
+                    sep_token = self.tokenizer.get_tokenizer().token_to_id("[SEP]")
+                    context_question_tokens, attention_mask_context_question = question_tokens[:-1] + [sep_token] + context_tokens[1:], attention_mask_question[:-1] + [0] + attention_mask_context[1:]
             else:
-                context_question_tokens, attention_mask_context_question = self.tokenizer.encode_two_texts(context, question, other_tokens_to_mask=["[SEP]", "[SOS]", "[EOS]"], is_question_first=False)
-                sep_idx = context_question_tokens.index(self.tokenizer.get_tokenizer().token_to_id("[SEP]")) if self.tokenizer.get_tokenizer().token_to_id("[SEP]") in context_question_tokens else len(context_tokens)
-                context_question_type_mask = [1] * sep_idx + [0] * (len(context_question_tokens) - sep_idx)
+                if not self.encode_two_texts_sep:
+                    context_question_tokens, attention_mask_context_question = self.tokenizer.encode_two_texts(context, question, other_tokens_to_mask=["[SEP]", "[SOS]", "[EOS]"], is_question_first=False)
+                    sep_idx = context_question_tokens.index(self.tokenizer.get_tokenizer().token_to_id("[SEP]")) if self.tokenizer.get_tokenizer().token_to_id("[SEP]") in context_question_tokens else len(context_tokens)
+                    context_question_type_mask = [1] * sep_idx + [0] * (len(context_question_tokens) - sep_idx)
+                else:
+                    sep_token = self.tokenizer.get_tokenizer().token_to_id("[SEP]")
+                    context_question_tokens, attention_mask_context_question = context_tokens[:-1] + [sep_token] + question_tokens[1:], attention_mask_context[:-1] + [0] + attention_mask_question[1:]
+            
             start_idx, end_idx = self.prepare_start_end_indices(answer_start, answer_end, context_offsets)
 
         returned_data = {
@@ -63,6 +75,7 @@ class QADataset(Dataset):
             "answer": torch.tensor(answer_tokens, dtype=torch.long),
             "attention_mask_answer": torch.tensor(attention_mask_answer, dtype=torch.long),
         } 
+
         if self.include_context:
             returned_data["context"] = torch.tensor(context_tokens, dtype=torch.long)
             returned_data["attention_mask_context"] = torch.tensor(attention_mask_context, dtype=torch.long)
