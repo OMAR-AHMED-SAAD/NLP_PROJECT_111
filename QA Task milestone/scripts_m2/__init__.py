@@ -9,3 +9,4 @@ from .qa_transformer import *
 from .qa_dataset_glove import *
 # from .glove_tokenizer import *
 from .bidaf import *
+from .drqa import *
