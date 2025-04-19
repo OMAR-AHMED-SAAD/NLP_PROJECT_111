@@ -19,23 +19,50 @@ Another challenge was the limited computational resources available, which made 
 
 This report describes how we processed the data, built and trained the models, evaluated their performance, and what we learned from the process. We also discuss the limitations of our approach and propose directions for future improvements.
 
-## 2. Data Preprocessing
+## 2. Literature Review
+
+The Stanford Question Answering Dataset (SQuAD), introduced by Rajpurkar et al. (2016), has been a central benchmark for evaluating extractive question answering (QA) systems. It consists of over 100,000 questions created from Wikipedia articles, where the task is to extract the correct span from a given context. The dataset’s design has encouraged a range of model architectures over the years—starting with recurrent neural networks (RNNs) and gradually moving toward attention-based models and transformer architectures.
+
+### 2.1 RNN-Based Approaches
+
+Initial attempts to solve the SQuAD task mainly used RNNs like LSTMs and GRUs due to their ability to model sequential dependencies. For example, the Match-LSTM model by Wang and Jiang (2016) used an LSTM to align the question and context, followed by a pointer network to predict the start and end of the answer span. The idea was to compute attention-weighted representations of the passage conditioned on the question, which helped the model focus on relevant information.
+
+Another early model, BiDAF (Seo et al., 2016), also relied on LSTMs but introduced a bi-directional attention mechanism that allowed interaction in both directions—context to question and question to context. This helped the model generate more informed representations of the input, leading to better span predictions.
+
+Bidirectional GRUs have also been used as a lighter alternative to LSTMs. Mishra (2022), for example, proposed a model based on Bi-GRUs with attention layers for SQuAD 2.0, which includes unanswerable questions. Their architecture could both predict answer spans and assess whether a question has an answer at all, although exact performance scores weren’t reported.
+
+In another example, Hu et al. (2018) proposed a model that combined Bi-LSTMs with co-attention mechanisms and a boundary decoder for span prediction. Their model performed competitively and showed how combining attention with recurrent encoders could boost accuracy.
+
+### 2.2 Attention-Based and Transformer Models
+
+As attention mechanisms became more central in NLP, models began to rely more on them, reducing or even eliminating the need for recurrence. While models like BiDAF already used attention, the introduction of transformers made it possible to model dependencies across the entire sequence in parallel, using only self-attention.
+
+One of the most impactful transformer-based models is BERT (Devlin et al., 2018). BERT is a pre-trained transformer that was fine-tuned on SQuAD, and it quickly set new benchmarks. Its ability to model bidirectional context using self-attention proved very effective for extractive QA tasks. BERT achieved significantly higher scores than previous RNN-based models and has since become a strong baseline in the field.
+
+Since BERT, many improved models have been proposed. These include larger or more specialized transformer architectures, often using techniques like ensemble methods, knowledge distillation, or adversarial training. Many of these models have surpassed human-level performance on the SQuAD leaderboard, especially in SQuAD 1.1 and 2.0.
+
+### 2.3 Summary
+
+The progression of QA models on SQuAD reflects a clear shift from sequence-based models like LSTMs and GRUs to attention-dominant architectures and finally to transformers. While our project was restricted to using either RNNs or attention-based models—not both—the literature suggests that combining these techniques can lead to improved performance, particularly for smaller models. This context helped inform the design choices in our own model development.
+
+
+## 3. Data Preprocessing
 
 Effective data preprocessing was a crucial part of our pipeline to ensure the model could handle the input format correctly and learn from the SQuAD 2.0 dataset under our project constraints.
 
-### 2.1 Dataset Preparation
+### 3.1 Dataset Preparation
 
 We used the SQuAD 2.0 dataset, which includes both answerable and unanswerable questions. For our task, we focused only on answerable questions. The dataset was downloaded in JSON format from the official website and parsed using custom Python scripts.
 
 To reduce training time and memory usage, we sorted all answerable examples by context length and selected the 20,000 shortest ones. Each example included a question, a context paragraph, and the ground truth answer span (given as character-level start and end positions within the context).
 
-### 2.2 Tokenization
+### 3.2 Tokenization
 
 We used **Byte Pair Encoding (BPE)** to tokenize the text. A vocabulary of 10,000 subword tokens was generated from the dataset using HuggingFace's `tokenizers` library. This was appropriate given that the dataset had approximately 90,000 unique raw words. BPE allowed us to break rare or unknown words into more frequent subword units, reducing the effective vocabulary size while still capturing meaningful tokens.
 
 All text was lowercased as part of preprocessing. We avoided removing punctuation or other characters, since the ground truth answer spans in SQuAD are given as character-level indices. Any modification of the text could invalidate these indices and cause incorrect training labels.
 
-### 2.3 Input Construction
+### 3.3 Input Construction
 
 Each input sequence was constructed by concatenating the tokenized question and context with special tokens in the following format:
 
@@ -54,13 +81,13 @@ For example, a sample input could look like:
 
 **[SOS] What is the capital of France? [SEP] France is a country in Europe. Its capital is Paris. [SEP]**
 
-### 2.4 Truncation and Padding
+### 3.4 Truncation and Padding
 
 Inputs longer than the model’s maximum allowed sequence length were **truncated** from the end of the context. This was necessary due to GPU memory constraints and to maintain a consistent input size. Shorter sequences were **padded** with the `[PAD]` token.
 
 To avoid the model attending to these padded positions during training and evaluation, we applied **attention masks**. These masks assign a weight of 0 to `[PAD]` tokens and 1 to all valid tokens, ensuring the model only learns from meaningful parts of the input.
 
-### 2.5 Label Processing
+### 3.5 Label Processing
 
 Since the original dataset provides **character-level start and end indices** of the answer in the context, we had to convert these into **token-level indices** after tokenization.
 
@@ -72,7 +99,7 @@ This was done by:
 
 During training, the model learns to predict these token indices as the start and end positions of the answer.
 
-### 2.6 Dataset Splits and Batching
+### 3.6 Dataset Splits and Batching
 
 We used the original **training and development (dev)** splits provided in SQuAD 2.0 and applied our filtering strategy to both sets to keep only answerable examples. These filtered sets were then used for training and validation respectively.
 
@@ -80,7 +107,7 @@ We trained using a **batch size of 32**, and all sequences in a batch were padde
 
 To efficiently handle the data during training, we implemented a **custom PyTorch Dataset class** that inherits from `torch.utils.data.Dataset`. This class handles preprocessing on-the-fly and returns the model inputs and labels in a consistent format. We then used **PyTorch DataLoaders** to create batches, shuffle the training data, and manage parallel data loading during training and evaluation.
 
-### 2.7 Libraries and Tools
+### 3.7 Libraries and Tools
 
 We used the following tools in our preprocessing pipeline:
 
