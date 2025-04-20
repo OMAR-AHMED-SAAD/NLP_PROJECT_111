@@ -103,7 +103,7 @@ def train_qa_context_model_boilerplate(model: nn.Module,
                                         num_epochs: int,
                                         inputs: List[str],
                                         val_dataloader: DataLoader=None,
-                                        evaluate_val_dataset: bool=False) -> None:
+                                        evaluate_val_dataset: bool=False) -> Tuple[List[float], List[float]]:
     """
     Train and evaluate the QA context model.
 
@@ -118,9 +118,13 @@ def train_qa_context_model_boilerplate(model: nn.Module,
         inputs (List[str]): List of input tensor names.
         val_dataloader (DataLoader, optional): DataLoader for validation data.
         evaluate_val_dataset (bool): Whether to evaluate on the validation dataset after each epoch.
-    
+
+    Returns:
+        Tuple[List[float], List[float]]: Training and validation losses.
         """
     model.to(device)
+    train_losses = []
+    val_losses = []
     for epoch in range(num_epochs):
         model.train()
         epoch_loss = 0
@@ -151,10 +155,13 @@ def train_qa_context_model_boilerplate(model: nn.Module,
 
         print(f"Epoch {epoch+1} Loss: {epoch_loss / len(train_dataloader):.4f}")
         
-        train_metrics = evaluate_qa_context_model_boilerplate(model, train_dataloader, criterion, device, inputs=inputs, prefix_str="Training")
+        train_loss, train_metrics = evaluate_qa_context_model_boilerplate(model, train_dataloader, criterion, device, inputs=inputs, prefix_str="Training")
+        train_losses.append(train_loss)
         if evaluate_val_dataset and val_dataloader is not None:
-            val_metrics = evaluate_qa_context_model_boilerplate(model, val_dataloader, criterion, device, inputs=inputs) 
+            val_loss, val_metrics = evaluate_qa_context_model_boilerplate(model, val_dataloader, criterion, device, inputs=inputs) 
+            val_losses.append(val_loss)
         print('-'*50)
+    return train_losses, val_losses
 
 def evaluate_qa_context_model_boilerplate(model: nn.Module, 
                                         dataloader: DataLoader,
