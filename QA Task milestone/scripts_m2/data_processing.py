@@ -65,9 +65,9 @@ def prepare_dataloaders_tokenizer():
     train_data = load_and_process_squad("data/m2_train.json", max_samples=20000)
     dev_data = load_and_process_squad("data/m2_dev.json", max_samples=2000)
 
-    context_max_length = 160
-    question_max_length = 30
-    answer_max_length = 25
+    context_max_length = 318
+    question_max_length = 23
+    answer_max_length = 6
     train_dataset = QADataset(train_data, tokenizer, context_max_length=context_max_length, question_max_length=question_max_length, answer_max_length=answer_max_length, include_context=True)
     dev_dataset = QADataset(dev_data, tokenizer, context_max_length=context_max_length, question_max_length=question_max_length, answer_max_length=answer_max_length, include_context=True)
     train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True) # add this `num_workers=0` if you want to see print in __getitem__ in dataset class
