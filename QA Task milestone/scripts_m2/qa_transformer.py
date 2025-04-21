@@ -186,11 +186,11 @@ class TransformerQAModel2(nn.Module):
         start_logits = self.start_head(ctx_out).squeeze(-1)
         end_logits   = self.end_head(ctx_out).squeeze(-1)
 
-        # 5) Mask out context pads so they can't be selected
-        if attention_mask_context is not None:
-            ctx_pad = attention_mask_context == 0
-            start_logits = start_logits.masked_fill(ctx_pad, -1e9)
-            end_logits   = end_logits.masked_fill(ctx_pad, -1e9)
+        # # 5) Mask out context pads so they can't be selected
+        # if attention_mask_context is not None:
+        #     ctx_pad = attention_mask_context == 0
+        #     start_logits = start_logits.masked_fill(ctx_pad, -1e9)
+        #     end_logits   = end_logits.masked_fill(ctx_pad, -1e9)
         
         return start_logits, end_logits
 
