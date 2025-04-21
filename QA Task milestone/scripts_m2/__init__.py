@@ -12,3 +12,4 @@ from .bidaf import *
 from .drqa import *
 from .plotting_helpers import *
 from .data_processing import *
+from .old_train import *
