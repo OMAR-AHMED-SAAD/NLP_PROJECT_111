@@ -145,10 +145,10 @@ class QADatasetGlove(Dataset):
             if curr_start_idx <= answer_end <= curr_end_idx and end_idx == -1:
                 end_idx = i
                 break
-        if end_idx == -1:
-            end_idx = len(context_offsets) - 1
-        if start_idx == -1:
-            raise ValueError("Answer start index not found in context tokens.")
+        # if end_idx == -1:
+        #     end_idx = len(context_offsets) - 1
+        if start_idx == -1 or end_idx == -1:
+            raise ValueError("Answer start or end index not found in context tokens.")
 
         return start_idx, end_idx
 

@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
 import math
+from typing import Tuple
 
 class TransformerQAModel(nn.Module):
     def __init__(self,
@@ -193,94 +194,94 @@ class TransformerQAModel2(nn.Module):
         
         return start_logits, end_logits
 
-# class TransformerQAModel3(nn.Module):
-#     def __init__(self,
-#                  vocab_size: int,
-#                  d_model: int,
-#                  num_layers: int,
-#                  num_heads: int,
-#                  dim_feedforward: int,
-#                  max_question_len: int,
-#                  max_context_len: int,
-#                  dropout: float = 0.1, 
-#                  pretrained_embeddings: torch.Tensor = None,
-#         freeze_embeddings: bool = False):
-#         """
-#         Args:
-#           vocab_size: size of your tokenizer vocabulary
-#           d_model: transformer hidden size
-#           num_layers: number of encoder blocks
-#           num_heads: number of attention heads
-#           dim_feedforward: inner dim of the transformer FFN
-#           max_question_len: maximum length of question (m)
-#           max_context_len: maximum length of context (n)
-#         """
-#         super().__init__()
-#         self.d_model = d_model
-#         self.max_context_len = max_context_len
-#         self.seq_len = max_question_len + max_context_len - 1
+class TransformerQAModel3(nn.Module):
+    def __init__(self,
+                 vocab_size: int,
+                 d_model: int,
+                 num_layers: int,
+                 num_heads: int,
+                 dim_feedforward: int,
+                 max_question_len: int,
+                 max_context_len: int,
+                 dropout: float = 0.1, 
+                 pretrained_embeddings: torch.Tensor = None,
+        freeze_embeddings: bool = False):
+        """
+        Args:
+          vocab_size: size of your tokenizer vocabulary
+          d_model: transformer hidden size
+          num_layers: number of encoder blocks
+          num_heads: number of attention heads
+          dim_feedforward: inner dim of the transformer FFN
+          max_question_len: maximum length of question (m)
+          max_context_len: maximum length of context (n)
+        """
+        super().__init__()
+        self.d_model = d_model
+        self.max_context_len = max_context_len
+        self.seq_len = max_question_len + max_context_len - 1
 
-#         # --- Embedding + Positional encoding ---
-#         self.token_emb = nn.Embedding(vocab_size, d_model)
-#         self.token_emb = nn.Embedding(
-#             vocab_size, d_model
-#         ) if pretrained_embeddings is None else nn.Embedding.from_pretrained(
-#             pretrained_embeddings, freeze=freeze_embeddings)
-#         self.pos_emb   = nn.Embedding(self.seq_len, d_model)
+        # --- Embedding + Positional encoding ---
+        self.token_emb = nn.Embedding(vocab_size, d_model)
+        self.token_emb = nn.Embedding(
+            vocab_size, d_model
+        ) if pretrained_embeddings is None else nn.Embedding.from_pretrained(
+            pretrained_embeddings, freeze=freeze_embeddings)
+        self.pos_emb   = nn.Embedding(self.seq_len, d_model)
 
-#         # --- Transformer encoder ---
-#         encoder_layer = nn.TransformerEncoderLayer(
-#             d_model=d_model,
-#             nhead=num_heads,
-#             dim_feedforward=dim_feedforward,
-#             dropout=dropout,
-#             activation="relu"
-#         )
-#         self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+        # --- Transformer encoder ---
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=d_model,
+            nhead=num_heads,
+            dim_feedforward=dim_feedforward,
+            dropout=dropout,
+            activation="relu"
+        )
+        self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
 
-#         # --- Dropout layer ---
-#         self.dropout = nn.Dropout(dropout)
+        # --- Dropout layer ---
+        self.dropout = nn.Dropout(dropout)
 
-#         # --- Two linear heads for start / end (per token) ---
-#         self.start_ff = nn.Linear(d_model, 1)
-#         self.end_ff   = nn.Linear(d_model, 1)
+        # --- Two linear heads for start / end (per token) ---
+        self.start_ff = nn.Linear(d_model, 1)
+        self.end_ff   = nn.Linear(d_model, 1)
 
-#     def forward(self,
-#                 context_question: torch.LongTensor,
-#                 attention_mask_context_question: torch.BoolTensor
-#                ) -> Tuple[torch.Tensor, torch.Tensor]:
-#         """
-#         Args:
-#           context_question: LongTensor of shape (batch, seq_len)
-#           attention_mask_context_question: BoolTensor of shape (batch, seq_len)
-#         Returns:
-#           start_logits, end_logits: FloatTensors of shape (batch, context_len+1)
-#         """
-#         bsz, seq_len = context_question.size()
-#         assert seq_len == self.seq_len, \
-#             f"expected seq_len={self.seq_len}, got {seq_len}"
+    def forward(self,
+                context_question: torch.LongTensor,
+                attention_mask_context_question: torch.BoolTensor
+               ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Args:
+          context_question: LongTensor of shape (batch, seq_len)
+          attention_mask_context_question: BoolTensor of shape (batch, seq_len)
+        Returns:
+          start_logits, end_logits: FloatTensors of shape (batch, context_len+1)
+        """
+        bsz, seq_len = context_question.size()
+        assert seq_len == self.seq_len, \
+            f"expected seq_len={self.seq_len}, got {seq_len}"
 
-#         # --- Embedding ---
-#         pos = torch.arange(seq_len, device=context_question.device).unsqueeze(0)  # (1, seq_len)
-#         x = self.token_emb(context_question) * math.sqrt(self.d_model)
-#         x = x + self.pos_emb(pos)         # (batch, seq_len, d_model)
+        # --- Embedding ---
+        pos = torch.arange(seq_len, device=context_question.device).unsqueeze(0)  # (1, seq_len)
+        x = self.token_emb(context_question) * math.sqrt(self.d_model)
+        x = x + self.pos_emb(pos)         # (batch, seq_len, d_model)
 
-#         x = self.dropout(x)
-#         x = x.transpose(0, 1)             # (seq_len, batch, d_model)
+        x = self.dropout(x)
+        x = x.transpose(0, 1)             # (seq_len, batch, d_model)
 
-#         # Invert attention mask for transformer: True = padding
-#         kp_mask = attention_mask_context_question == 1
+        # Invert attention mask for transformer: True = padding
+        kp_mask = attention_mask_context_question == 1
 
-#         # --- Pass through transformer encoder ---
-#         x = self.encoder(x, src_key_padding_mask=kp_mask)  # (seq_len, batch, d_model)
-#         x = x.transpose(0, 1)                              # (batch, seq_len, d_model)
+        # --- Pass through transformer encoder ---
+        x = self.encoder(x, src_key_padding_mask=kp_mask)  # (seq_len, batch, d_model)
+        x = x.transpose(0, 1)                              # (batch, seq_len, d_model)
 
-#         # --- Extract context representations (including [OOV]) ---
-#         context_repr = x[:, -self.max_context_len:, :]     # (batch, C+1, d_model)
-#         context_repr = self.dropout(context_repr)
+        # --- Extract context representations (including [OOV]) ---
+        context_repr = x[:, -self.max_context_len:, :]     # (batch, C+1, d_model)
+        context_repr = self.dropout(context_repr)
 
-#         # --- Token-level start/end logits ---
-#         start_logits = self.start_ff(context_repr).squeeze(-1)  # (batch, C+1)
-#         end_logits   = self.end_ff(context_repr).squeeze(-1)    # (batch, C+1)
+        # --- Token-level start/end logits ---
+        start_logits = self.start_ff(context_repr).squeeze(-1)  # (batch, C+1)
+        end_logits   = self.end_ff(context_repr).squeeze(-1)    # (batch, C+1)
 
-#         return start_logits, end_logits
+        return start_logits, end_logits

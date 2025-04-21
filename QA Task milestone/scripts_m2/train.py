@@ -156,7 +156,7 @@ def train_qa_context_model_boilerplate(model: nn.Module,
         print(f"Epoch {epoch+1} Loss: {epoch_loss / len(train_dataloader):.4f}")
         
         train_loss, train_metrics = evaluate_qa_context_model_boilerplate(model, train_dataloader, criterion, device, inputs=inputs, prefix_str="Training")
-        train_losses.append(train_loss)
+        train_losses.append(epoch_loss / len(train_dataloader))
         if evaluate_val_dataset and val_dataloader is not None:
             val_loss, val_metrics = evaluate_qa_context_model_boilerplate(model, val_dataloader, criterion, device, inputs=inputs) 
             val_losses.append(val_loss)
