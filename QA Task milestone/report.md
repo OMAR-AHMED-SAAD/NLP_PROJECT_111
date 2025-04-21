@@ -115,3 +115,133 @@ We used the following tools in our preprocessing pipeline:
 - **Custom Python scripts** — For loading and filtering the dataset, mapping character indices to token indices, and constructing input sequences with proper masks.
 - **PyTorch Dataset and DataLoader** — For batching, shuffling, and parallelized data loading.
 
+## 4. Model Architectures
+
+In this section, we describe the different neural network architectures we implemented for extractive question answering on the SQuAD dataset. All models take as input a tokenized question and context pair and predict the start and end indices of the answer span within the context. The input is preprocessed as described earlier and fed into the models using the same training and evaluation pipeline. We experimented with four different architectures, each using either RNN-based or attention-based mechanisms. Below, we describe each architecture in detail.
+
+### 4.1 Dual-RNN with Final State Concatenation
+
+This model processes the question and context independently using two separate RNN encoders. Unlike attention-based models, it summarizes each input sequence using the final hidden state of its respective RNN. The final hidden states of both the question and context are concatenated and passed through a feed-forward network to predict the start and end positions.
+
+#### Architecture Overview
+
+- **Separate Embedding Layers**: Independent embeddings for the context and question inputs. Optionally initialized with pretrained vectors and can be frozen during training.
+- **Dual RNN Encoders**: Separate RNN (LSTM/GRU/RNN) modules for the context and question, allowing flexible experimentation. The outputs of these encoders are not used directly—only their final hidden states are kept.
+- **Hidden State Concatenation**: The final forward and backward hidden states (if bidirectional) from both RNNs are concatenated, resulting in a single fixed-size vector summarizing both inputs.
+- **Feedforward Layers**: A two-layer MLP uses the combined representation to produce logits for the start and end positions.
+
+<p align="center">
+    <img src="images/model1.png" alt="Model 1 Architecture" width="200"/>
+</p>
+
+#### Input & Output
+
+- **Inputs**: 
+  - `context` (LongTensor): Tokenized context sequence.
+  - `question` (LongTensor): Tokenized question sequence.
+- **Outputs**:
+  - `start_logits`, `end_logits`: Logits over the context, computed from the combined hidden states.
+
+#### Model Highlights
+
+- Unlike token-level models, this architecture **summarizes the entire context and question** into single fixed-size vectors before answer prediction.
+- The model is lightweight and efficient, making it a good baseline for comparing the effectiveness of fine-grained attention mechanisms.
+- It supports configurable RNN types (LSTM, GRU, or vanilla RNN) and optionally pretrained embeddings.
+
+### 4.2 Cross-Attention Transformer Model (TransformerQAModel2)
+
+This model adopts a different approach inspired by encoder-decoder architectures, specifically focusing on how the context representation can be enriched by attending to the question. Instead of concatenating the context and question into a single sequence, this model processes them separately initially and then uses cross-attention mechanisms.
+
+#### Architecture Overview
+
+- **Embedding Layer**: Both the context and the question tokens are independently embedded using token embeddings and positional embeddings. Dropout is applied to the combined embeddings.
+- **Question Encoder**: The embedded question sequence is passed through a Transformer Encoder block (a stack of self-attention and feed-forward layers). This generates a contextualized representation for each token in the question.
+- **Cross-Attention Layers**: The context representations act as *queries*, while the encoded question representations act as *keys* and *values*. A multi-head attention mechanism calculates how much each context token should attend to the question tokens. The output of the attention is added to the context representation via a residual connection, followed by layer normalization. A feed-forward network is applied, again followed by a residual connection and layer normalization. This process is repeated for the specified number of cross-attention layers.
+- **Output Heads**: After passing through the cross-attention layers, the final context representations are fed into two separate linear layers to produce the start and end logits for each token position in the context.
+- **Masking**: Padding tokens in the input question are masked during the question encoding and cross-attention steps. Padding tokens in the input context are masked in the final output logits to prevent them from being selected as start or end points.
+
+#### Input & Output
+
+- **Inputs**: 
+  - `context` (LongTensor): Tokenized context sequence.
+  - `question` (LongTensor): Tokenized question sequence.
+  - `attention_mask_context` (Tensor): Optional mask to ignore padding tokens in the context during attention.
+  - `attention_mask_question` (Tensor): Optional mask to ignore padding tokens in the question during attention.
+- **Outputs**: 
+  - `start_logits`, `end_logits`: Logits over the context tokens indicating the predicted start and end positions.
+
+#### Model Highlights
+
+- The model uses **cross-attention** to explicitly model the interaction between the context and the question.
+- Padding in both the context and the question is properly masked during attention computation.
+- The architecture is modular, allowing for flexible configuration of the number of cross-attention layers and Transformer encoder layers.
+- It maintains token-level alignment between the context and the question, ensuring fine-grained predictions.
+- The use of residual connections and layer normalization ensures stable training and better gradient flow.
+
+
+
+### 4.3 DrQA-Inspired BiLSTM Model
+
+This model is a simplified version of the DrQA Document Reader. It uses separate bidirectional LSTM encoders for the question and the context, followed by a dot-product attention mechanism and a pointer network to extract the answer span.
+
+#### Architecture Overview
+
+- **Embedding Layer**: Maps input token indices to dense vectors. Padding tokens are handled using `padding_idx`.
+- **BiLSTM Encoders**: Two separate BiLSTM networks encode the context and the question independently. Each has 3 layers, a hidden size of 128, and dropout applied for regularization.
+- **Dot-Product Attention**: Calculates a similarity matrix between context and question encodings to capture alignment between them.
+- **Fusion Layer**: The attention-weighted question representation is concatenated with the context encoding to form the fused representation.
+- **Pointer Network**: Two MLPs predict the start and end positions of the answer from the fused representation.
+
+#### Input & Output
+
+- **Inputs**: 
+  - `context` (LongTensor): Tokenized context sequence.
+  - `question` (LongTensor): Tokenized question sequence.
+  - `attention_mask_question` (Tensor): Optional mask to ignore padding tokens in the question during attention.
+- **Outputs**: 
+  - `start_logits`, `end_logits`: Logits over the context tokens indicating the predicted start and end positions.
+
+#### Model Highlights
+
+- The model uses **dot-product attention** to focus on relevant parts of the question while reading the context.
+- Padding in the question is properly masked during attention computation.
+- The architecture is lightweight and works within hardware constraints.
+- It avoids summarizing the input too early and maintains token-level alignment between context and question.
+
+
+### 4.4 Bi-Directional Attention Flow (BiDAF) Model
+
+The BiDAF model is a widely recognized architecture for machine comprehension tasks. It explicitly models the interaction between the context and the question using bi-directional attention mechanisms. This allows the model to focus on the most relevant parts of the context for answering the question.
+
+#### Architecture Overview
+
+- **Embedding Layer**: Converts word indices into dense vector representations using an embedding layer. Pretrained embeddings (e.g., GloVe) can be used for better initialization. Dropout is applied to the embeddings for regularization.
+- **Contextual Encoder**: A BiLSTM processes the embedded context and question sequences independently. It outputs contextualized representations of the context and question, each with a dimensionality of `2 * hidden_size`.
+- **Attention Flow Layer**:
+  - **Context-to-Query (C2Q) Attention**: For each context word, attends over all query words to identify the most relevant parts of the question.
+  - **Query-to-Context (Q2C) Attention**: For each query word, computes its maximum similarity with all context words and uses this to attend over the context.
+  - Combines the original context representation with the attended vectors to form an augmented representation `G` of shape `(batch, c_len, 8 * hidden_size)`.
+- **Modeling Layer**: A 2-layer BiLSTM processes the attention output `G` to produce a refined representation `M` of shape `(batch, c_len, 2 * hidden_size)`.
+- **Output Layer**:
+  - Computes the start and end logits for the answer span:
+    - Concatenates `G` and `M` to predict the start logits.
+    - Passes `M` through an additional BiLSTM to produce `M2`, which is concatenated with `G` to predict the end logits.
+  - Uses linear layers to compute the logits for each token in the context.
+
+#### Input & Output
+
+- **Inputs**:
+  - `context` (Tensor): Tokenized context sequence of shape `(batch, c_len)`.
+  - `question` (Tensor): Tokenized question sequence of shape `(batch, q_len)`.
+- **Outputs**:
+  - `start_logits` (Tensor): Logits over the context tokens indicating the predicted start position of the answer.
+  - `end_logits` (Tensor): Logits over the context tokens indicating the predicted end position of the answer.
+
+#### Model Highlights
+
+- The BiDAF model uses **bi-directional attention** to explicitly model the interaction between the context and the question.
+- The **Context-to-Query (C2Q) Attention** helps the model focus on the most relevant parts of the question for each context word.
+- The **Query-to-Context (Q2C) Attention** ensures that global information from the context is incorporated into the representation.
+- The architecture is modular, with separate layers for embedding, attention, modeling, and output, making it easy to extend or modify.
+- The use of residual connections and dropout ensures stable training and reduces overfitting.
+- The model is designed to handle variable-length inputs, with padding tokens properly masked during computations.
