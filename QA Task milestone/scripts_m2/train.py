@@ -9,6 +9,7 @@ import numpy as np
 from .bpe_tokenizer import BPETokenizer
 import pickle
 import os
+import copy
 
 def train_seq2seq(
     model: nn.Module,
@@ -125,6 +126,15 @@ def train_qa_context_model_boilerplate(model: nn.Module,
     model.to(device)
     train_losses = []
     val_losses = []
+
+    # Early stopping & LR scheduling
+    best_val_loss = float('inf')
+    epochs_no_improve = 0
+    best_model_state = None
+    scheduler = None
+    if evaluate_val_dataset:
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=2, verbose=True)
+
     for epoch in range(num_epochs):
         model.train()
         epoch_loss = 0
@@ -153,14 +163,38 @@ def train_qa_context_model_boilerplate(model: nn.Module,
             epoch_loss += loss.item()
             progress_bar.set_postfix(loss=loss.item())
 
-        print(f"Epoch {epoch+1} Loss: {epoch_loss / len(train_dataloader):.4f}")
+        avg_epoch_loss = epoch_loss / len(train_dataloader)
+        print(f"Epoch {epoch+1} Loss: {avg_epoch_loss:.4f}")
         
         train_loss, train_metrics = evaluate_qa_context_model_boilerplate(model, train_dataloader, criterion, device, inputs=inputs, prefix_str="Training")
-        train_losses.append(epoch_loss / len(train_dataloader))
+        train_losses.append(avg_epoch_loss)
         if evaluate_val_dataset and val_dataloader is not None:
             val_loss, val_metrics = evaluate_qa_context_model_boilerplate(model, val_dataloader, criterion, device, inputs=inputs) 
             val_losses.append(val_loss)
+            # update the learning rate scheduler
+            scheduler.step(val_loss)
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                epochs_no_improve = 0
+                best_model_state = copy.deepcopy(model.state_dict())
+                print(f"Validation loss improved to {best_val_loss:.4f}. Saving model state.")
+            else:
+                epochs_no_improve += 1
+                print(f"Validation loss did not improve. No improvement for {epochs_no_improve} epochs.")
+                if epochs_no_improve >= 5:
+                    print("Early stopping triggered.")
+                    break
+        else:
+            val_losses.append(None) # if no validation data, append None
+        
         print('-'*50)
+
+    
+    # Load the best model 
+    if best_model_state is not None:
+        model.load_state_dict(best_model_state)
+        print("Loaded the best model state.")
+    
     return train_losses, val_losses
 
 def evaluate_qa_context_model_boilerplate(model: nn.Module, 
