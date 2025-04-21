@@ -184,12 +184,9 @@ def save_model(model: nn.Module, model_path: str, save_again: bool=False) -> Non
         model_path (str): Path to save the model.
         save_again (bool): Whether to overwrite the existing model file.
     """
-    if os.path.exists(model_path) and not save_again:
-        print(f"Model file {model_path} already exists. Skipping save.")
-    else:
-        with open(model_path, "wb") as f:
-            pickle.dump(model, f)
-            print(f"Model saved to {model_path}")
+    with open(model_path, "wb") as f:
+        pickle.dump(model, f)
+        print(f"Model saved to {model_path}")
 
 
 def load_model(model_path: str) -> nn.Module:
