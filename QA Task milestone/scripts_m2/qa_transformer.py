@@ -270,7 +270,7 @@ class TransformerQAModel3(nn.Module):
         x = x.transpose(0, 1)             # (seq_len, batch, d_model)
 
         # Invert attention mask for transformer: True = padding
-        kp_mask = attention_mask_context_question == 1
+        kp_mask = attention_mask_context_question == 0
 
         # --- Pass through transformer encoder ---
         x = self.encoder(x, src_key_padding_mask=kp_mask)  # (seq_len, batch, d_model)

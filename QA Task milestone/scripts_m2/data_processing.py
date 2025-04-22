@@ -90,6 +90,6 @@ def prepare_dataloaders_tokenizer_glove():
     answer_max_length = 5
     train_dataset = QADatasetGlove(train_data, tokenizer, context_max_length=context_max_length, question_max_length=question_max_length, answer_max_length=answer_max_length, include_context=True, encode_two_texts=True)
     dev_dataset = QADatasetGlove(dev_data, tokenizer, context_max_length=context_max_length, question_max_length=question_max_length, answer_max_length=answer_max_length, include_context=True, encode_two_texts=True)
-    train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True) # add this `num_workers=0` if you want to see print in __getitem__ in dataset class
-    dev_dataloader = DataLoader(dev_dataset, batch_size=32, shuffle=False)
+    train_dataloader = DataLoader(train_dataset, batch_size=64, shuffle=True) # add this `num_workers=0` if you want to see print in __getitem__ in dataset class
+    dev_dataloader = DataLoader(dev_dataset, batch_size=64, shuffle=False)
     return train_dataloader, dev_dataloader, tokenizer
