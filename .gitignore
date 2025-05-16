@@ -185,3 +185,13 @@ stopwords.py
 
 */.vector_cache/*
 QA Task milestone/notebooks_m2/.vector_cache
+RAG milestone/raw_data/allfootball.csv
+RAG milestone/raw_data/df_analyst.csv
+RAG milestone/raw_data/goal-news.csv
+RAG milestone/raw_data/skysports.csv
+RAG milestone/raw_data/tribuna_articles.csv
+RAG milestone/raw_data/live_mint.csv
+RAG milestone/raw_data/final-articles.csv
+RAG milestone/raw_data/readme.txt
+RAG milestone/notebooks/footabll_dataset_preprocessing.ipynb
+RAG milestone/notebooks/cleaning.py
