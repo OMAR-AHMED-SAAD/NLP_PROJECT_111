@@ -8,7 +8,7 @@ class BaseController(ABC):
                  embeddings_model_name: str,
                  vdb: VectorDB,
                  chat_factory: ChatModelFactory,
-                 system_prompt: str=SYSTEM_PROMPT,
+                 system_prompt: str="system_prompt",
                  k: int= 1):
         '''
         Initializes the BaseController with an embeddings model name, a vector database, a chat model factory, a system prompt, and a k value.

@@ -1,6 +1,7 @@
 import gradio as gr
 import requests
 from typing import List, Tuple
+from requests.exceptions import ChunkedEncodingError
 
 def respond(user_message: str, history: List[Tuple[str, str]]):
     """
@@ -13,20 +14,30 @@ def respond(user_message: str, history: List[Tuple[str, str]]):
     url = "http://localhost:8000/ask"
     payload = {"question": user_message}
 
-    # Open the streaming connection
-    with requests.post(url, json=payload, stream=True) as resp:
-        answer = ""
-        history = history + [(user_message, answer)]
-        
-        # Yield the empty response immediately to trigger UI update
-        yield "", history, history  
+    try:
+        # Open the streaming connection
+        with requests.post(url, json=payload, stream=True) as resp:
+            answer = ""
+            history = history + [(user_message, answer)]
+            
+            # Yield the empty response immediately to trigger UI update
+            yield "", history, history  
 
-        # Read and process each streamed chunk
-        for chunk in resp.iter_content(chunk_size=1, decode_unicode=True):
-            if chunk:
-                answer += chunk
-                history[-1] = (user_message, answer)
-                yield "", history, history  # Continuously update UI
+            # Read and process each streamed chunk
+            for chunk in resp.iter_content(chunk_size=1, decode_unicode=True):
+                if chunk:
+                    answer += chunk
+                    history[-1] = (user_message, answer)
+                    yield "", history, history  # Continuously update UI
+    except Exception as e:
+        resp2 = requests.post(url, json=payload)
+        try:
+            answer = resp2.json().get("answer", "")
+        except ValueError:
+            answer = resp2.text
+        history[-1] = (user_message, answer)
+        yield "", history, history
+        return
 
 with gr.Blocks() as demo:
     gr.Markdown("## Chat with the RAG System")

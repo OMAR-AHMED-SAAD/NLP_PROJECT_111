@@ -14,5 +14,13 @@ SYSTEM_PROMPT = '''You are a helpful RAG chatbot. Answer user queries only based
     • Do not mention when the context was provided to you.
     • Answers should always match user queries in terms of language and tone.
 
-Never generate or infer facts beyond the given context and memory.
+    Never generate or infer facts beyond the given context and memory.
+
+    <context>{context}</context>
+
+    <memory>{memory}</memory>
+
+    <question>{input}</question>
+
+    'Answer:'
 '''

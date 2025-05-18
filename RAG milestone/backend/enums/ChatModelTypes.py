@@ -6,3 +6,4 @@ class ChatModelTypes(Enum):
     '''
     
     CHAT = "chat"
+    REFINEMENT = "refinement"

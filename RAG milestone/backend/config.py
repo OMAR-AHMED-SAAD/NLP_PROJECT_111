@@ -13,7 +13,6 @@ class Settings(BaseSettings):
     PERSIST_DIRECTORY: str  # Directory for persisting Chroma DB
     EMBEDDINGS_MODEL_NAME: str  # Name of the embeddings model
 
-    DB_COLLECTION_NAME: str=None  # Name of the collection
     EMBEDDINGS_SIZE: int=1024  # Size of the embeddings
 
     GOOGLE_MAX_OUTPUT_TOKENS: int  # Maximum number of tokens to output for Google Generative AI
@@ -21,8 +20,11 @@ class Settings(BaseSettings):
     MODEL_CHAT_NAME: str  # Name of the main chat model
     MODEL_CHAT_CLASS: str  # Class of the main chat model
 
+    MODEL_REFINEMENT_NAME: str  # Name of the REFINEMENT model
+    MODEL_REFINEMENT_CLASS: str  # Class of the REFINEMENT model
+
     # Prompts
-    SYSTEM_PROMPT: str=SYSTEM_PROMPT  # System prompt for the chat model
+    SYSTEM_PROMPT: str="system_prompt"  # System prompt for the chat model
 
     MEMORY_SIZE: int=10  # Size of the memory for the RAG model
 

@@ -197,3 +197,6 @@ RAG milestone/notebooks/footabll_dataset_preprocessing.ipynb
 RAG milestone/notebooks/cleaning.py
 RAG milestone/distilbert-squad-finetuned_tokenizer/distilbert-squad-finetuned_tokenizer/*
 RAG milestone/distilbert-squad-finetuned_model/distilbert-squad-finetuned_model/*
+RAG milestone/backend/temp.json
+RAG milestone/backend/distilbert-squad-finetuned_model
+RAG milestone/backend/distilbert-squad-finetuned_tokenizer

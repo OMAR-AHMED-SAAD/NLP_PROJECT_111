@@ -1,7 +1,9 @@
-from components import LLM
 from langchain_ollama import ChatOllama
 from langchain_google_genai import ChatGoogleGenerativeAI 
 from enums import ChatEnums, ChatModelTypes
+from .LLM import LLM
+from .DistilBertLLM import DistilBertLLM
+
 
 class ChatModelFactory:
     """Factory to instantiate different chat models dynamically."""
@@ -29,7 +31,8 @@ class ChatModelFactory:
 
         if model_type == ChatModelTypes.CHAT.value:
             model_name = self.config.MODEL_CHAT_NAME
-
+        elif model_type == ChatModelTypes.REFINEMENT.value:
+            model_name = self.config.MODEL_REFINEMENT_NAME
 
         temperature = 0
         streaming = True
@@ -47,4 +50,8 @@ class ChatModelFactory:
                 api_key=self.config.GOOGLE_API_KEY,
                 max_output_tokens=self.config.GOOGLE_MAX_OUTPUT_TOKENS
             )
+        
+        if model_class == ChatEnums.FINETUNED_ENCODER.value:
+            curr_chat_model = DistilBertLLM()
+            
         return LLM(model=curr_chat_model)

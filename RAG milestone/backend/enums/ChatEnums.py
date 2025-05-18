@@ -6,3 +6,4 @@ class ChatEnums(Enum):
     '''
     OLLAMA = "ollama"
     GOOGLE = "google"
+    FINETUNED_ENCODER = "finetuned_encoder"
