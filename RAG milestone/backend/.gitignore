@@ -14,15 +14,15 @@ venv.bak/
 
 # Chroma folder
 chroma_db/
-chroma_db_*
+chroma_db_10*
 
 # logs folder 
 logs/
 
 data/
 
-*.json
 
-*.txt
+
+
 *.ipynb
 temp.json
