@@ -1,4 +1,4 @@
-# NLP_PROJECT_111
+# Milestone 1
 ## Goal Task
 
 Our Goal Task is to train a Deep Learning Model for `Multi Label Extraction`
