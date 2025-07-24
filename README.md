@@ -8,16 +8,14 @@ Each project lives in its own folder with a detailed README.
 ### 1. Milestone 1 – Multi‑Label Extraction
 
 Arabic podcast analysis: preprocessing, EDA (word clouds, sentiment, sarcasm, NER), and automatic label generation (TF‑IDF & Gemini).
-➡️ [`Data Preprocessing milestone/README.md`](milestone1/README.md)
-
+➡️ [`Data Preprocessing milestone/README.md`](./Data%20Preprocessing%20milestone/README.md)
 
 ### 2. Milestone 2 – Extractive Question Answering
 
 From‑scratch implementations of constrained QA models (RNN- and attention-based) on a filtered SQuAD 2.0 subset.
-➡️ [`QA Task milestone/README.md`](milestone2/README.md)
+➡️ [`QA Task milestone/README.md`](./QA%20Task%20milestone/README.md)
 
 ### 3. RAG System
 
 Retrieval‑Augmented Generation pipeline with a Gradio frontend and pluggable backend (supports Ollama, Gemini API, and a finetuned encoder).
-➡️ [`RAG milestone/README.md`](rag_system/README.md)
-
+➡️ [`RAG milestone/README.md`](./RAG%20milestone/README.md)
